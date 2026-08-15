@@ -427,7 +427,7 @@
 
     <div id="feed-bar">
         <span id="feed-note"></span>
-        <button class="shuffle-btn" onclick="reshuffle()"><i class="fa fa-shuffle"></i> 並べかえ</button>
+        <button class="shuffle-btn" onclick="refreshFromServer()"><i class="fa fa-arrows-rotate"></i> 更新</button>
     </div>
 
     <main id="main-content"></main>
@@ -466,7 +466,6 @@
 
     let posts = [];
     let localPrefs = { categoryScores: {}, likedIds: [], votedPolls: {} };
-    let feedOrder = [];
     let isEditing = false;
     let currentView = "home";
     let selectedTextElement = null;
@@ -502,7 +501,7 @@
             await loadPostsFromServer();
             await applyCategoryAgingAndSync();
             setupRealtime();
-            reshuffle();
+            render();
         } catch (err) {
             console.error(err);
             alert("データの読み込みに失敗しました。インターネット接続、またはSupabaseの設定をご確認ください。\n" + (err.message || err));
@@ -587,14 +586,12 @@
         if (payload.eventType === "INSERT") {
             if (!posts.find(p => p.id === payload.new.id)) {
                 posts.unshift(rowToPost(payload.new));
-                feedOrder.unshift(payload.new.id);
             }
         } else if (payload.eventType === "UPDATE") {
             const idx = posts.findIndex(p => p.id === payload.new.id);
             if (idx !== -1) posts[idx] = rowToPost(payload.new);
         } else if (payload.eventType === "DELETE") {
             posts = posts.filter(p => p.id !== payload.old.id);
-            feedOrder = feedOrder.filter(id => id !== payload.old.id);
         }
         // 今まさに文字を入力中の場合は、その場での再描画を避けて入力内容を守る
         const active = document.activeElement;
@@ -698,10 +695,6 @@
         localPrefs.categoryScores[category] = Math.min(20, now + amount);
     }
 
-    function weightOf(category) {
-        return 1 + (localPrefs.categoryScores[category] || 0) * 0.6;
-    }
-
     function topCategory() {
         let best = null, bestScore = 0;
         Object.keys(localPrefs.categoryScores).forEach(c => {
@@ -710,12 +703,19 @@
         return bestScore >= 2 ? best : null;
     }
 
-    function reshuffle() {
-        feedOrder = posts
-            .map(p => ({ id: p.id, key: Math.pow(Math.random(), 1 / weightOf(p.category)) }))
-            .sort((a, b) => b.key - a.key)
-            .map(x => x.id);
-        render();
+    // 投稿日時が新しいものから順に並べる（未設定の日付は一番下扱い）
+    function sortedPosts() {
+        return posts.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+
+    // 手動でサーバーから最新の状態を取得し直す（以前の「並べかえ」ボタンの役割を引き継ぐ）
+    async function refreshFromServer() {
+        try {
+            await loadPostsFromServer();
+            render();
+        } catch (err) {
+            alert("更新に失敗しました：" + (err.message || err));
+        }
     }
 
     function switchView(view) {
@@ -726,11 +726,8 @@
     }
 
     function currentList() {
-        if (isEditing) return posts;
-        if (currentView === "fav") return posts.filter(p => p.isLiked);
-        const ordered = feedOrder.map(getPost).filter(Boolean);
-        posts.forEach(p => { if (!feedOrder.includes(p.id)) ordered.push(p); });
-        return ordered;
+        if (currentView === "fav") return sortedPosts().filter(p => p.isLiked);
+        return sortedPosts();
     }
 
     function render() {
@@ -766,10 +763,7 @@
             note.innerText = "いいね！した投稿だけを表示しています";
             return;
         }
-        const top = topCategory();
-        note.innerText = top
-            ? "毎回ランダムに並べています（よく見る種目「" + top + "」が上に出やすくなっています）"
-            : "毎回ランダムに並べています";
+        note.innerText = "新しい投稿から順に並んでいます";
     }
 
     function escapeHTML(str) {
@@ -968,7 +962,6 @@
         const { error } = await sb.from("posts").delete().eq("id", id);
         if (error) { alert("削除に失敗しました：" + error.message); return; }
         posts = posts.filter(p => p.id !== id);
-        feedOrder = feedOrder.filter(x => x !== id);
         render();
     }
 
@@ -1076,7 +1069,6 @@
         if (!posts.find(x => x.id === p.id)) {
             p.isLiked = false;
             posts.unshift(p);
-            feedOrder.unshift(p.id);
             render();
         }
         return p;
@@ -1268,7 +1260,7 @@
         currentView = "home";
         document.getElementById("tab-home").classList.add("active");
         document.getElementById("tab-fav").classList.remove("active");
-        reshuffle();
+        render();
         alert("編集モードを終了しました。");
     }
 
@@ -1335,7 +1327,7 @@
                     if (error) console.error(error);
                 }
                 await loadPostsFromServer();
-                reshuffle();
+                render();
                 alert("データを読み込みました！");
             } catch (err) {
                 alert("ファイルの読み込みに失敗しました：" + err.message);
