@@ -470,7 +470,15 @@
     const memoryStore = {};
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch (e) { return memoryStore[k] || null; } },
-        set(k, v) { try { localStorage.setItem(k, v); } catch (e) { memoryStore[k] = v; } }
+        set(k, v) {
+            try {
+                localStorage.setItem(k, v);
+                return true; // 保存に成功
+            } catch (e) {
+                memoryStore[k] = v;
+                return false; // 保存に失敗（容量オーバーなど）。この場合、画面を閉じると内容は消える
+            }
+        }
     };
 
     window.onload = function () {
@@ -613,11 +621,21 @@
 
     function saveData(showAlert) {
         syncFromDOM();
-        store.set(STORE_KEY, JSON.stringify({
+        const ok = store.set(STORE_KEY, JSON.stringify({
             version: 2,
             posts: posts,
             scores: categoryScores
         }));
+        if (!ok) {
+            alert(
+                "⚠️ 保存容量の上限を超えたため、最新の変更を保存できませんでした。\n" +
+                "写真や動画が多すぎる可能性があります。\n" +
+                "・いくつか投稿を削除してから再度保存する\n" +
+                "・写真は自動で圧縮されますが、動画は圧縮されないため特に注意してください\n" +
+                "この画面を閉じると、保存できなかった変更は失われます。"
+            );
+            return;
+        }
         if (showAlert === true) alert("変更を保存しました！");
     }
 
@@ -999,23 +1017,79 @@
         });
     }
 
+    // 写真を長辺maxSizeにリサイズし、JPEGで再圧縮してからBase64化する。
+    // localStorageは容量が数MBしかないため、スマホ写真をそのまま保存すると
+    // 数枚ですぐ上限を超えてしまう問題への対策。
+    function resizeImageFile(file, maxSize, quality) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = Math.round(height * (maxSize / width));
+                            width = maxSize;
+                        } else {
+                            width = Math.round(width * (maxSize / height));
+                            height = maxSize;
+                        }
+                    }
+                    const canvas = document.createElement("canvas");
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL("image/jpeg", quality));
+                };
+                img.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+                img.src = ev.target.result;
+            };
+            reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
+            reader.readAsDataURL(file);
+        });
+    }
+
     document.getElementById("image-input").addEventListener("change", function (e) {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-            addPost({ type: "image", src: ev.target.result, text: "写真の説明を書いてください...", category: defaultCategory() });
-            e.target.value = "";
-        };
-        reader.readAsDataURL(file);
+        resizeImageFile(file, 1280, 0.75)
+            .then(dataUrl => {
+                addPost({ type: "image", src: dataUrl, text: "写真の説明を書いてください...", category: defaultCategory() });
+            })
+            .catch(err => {
+                alert("画像の処理に失敗しました：" + err.message);
+            })
+            .finally(() => {
+                e.target.value = "";
+            });
     });
 
     document.getElementById("video-input").addEventListener("change", function (e) {
         const file = e.target.files[0];
         if (!file) return;
+
+        // 動画はブラウザ側で圧縮できないため、大きいファイルは保存に失敗しやすい。
+        // 事前に容量を伝えて、続けるかどうか選んでもらう。
+        const sizeMB = file.size / 1024 / 1024;
+        if (sizeMB > 3) {
+            const proceed = confirm(
+                "この動画は約" + sizeMB.toFixed(1) + "MBあります。\n" +
+                "動画は写真と違って自動圧縮されないため、保存容量の上限（通常5MB程度）を超えて\n" +
+                "保存に失敗する可能性が高いです。\n\n" +
+                "それでもアップロードを続けますか？"
+            );
+            if (!proceed) { e.target.value = ""; return; }
+        }
+
         const reader = new FileReader();
         reader.onload = ev => {
             addPost({ type: "video", src: ev.target.result, text: "動画の説明を書いてください...", category: "動画" });
+            e.target.value = "";
+        };
+        reader.onerror = () => {
+            alert("動画の読み込みに失敗しました。");
             e.target.value = "";
         };
         reader.readAsDataURL(file);
@@ -1127,8 +1201,16 @@
     }
 
     function exportData() {
-        saveData();
-        const blob = new Blob([store.get(STORE_KEY)], { type: "application/json" });
+        syncFromDOM();
+        // localStorageの保存が容量オーバーで失敗していても、現在の投稿データから直接書き出す。
+        // これにより「保存できないほど写真が多い」場合でも、JSONファイルとして手元に残せる。
+        const dataStr = JSON.stringify({
+            version: 2,
+            posts: posts,
+            scores: categoryScores
+        });
+        saveData(); // 保存も試みる（容量オーバー時はアラートが表示される）
+        const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
