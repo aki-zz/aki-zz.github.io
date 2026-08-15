@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>髙木家のホームページ</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      cursor: url("mokoface.png") 16 16, auto !important;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background-color: #f4f8fa;
+      color: #333;
+    }
+
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background-color: rgba(164, 232, 246, 0.95);
+      z-index: 9999;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+
+    #loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #loading-screen p {
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: bold;
+      margin: 0;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+
+    header {
+      height: 65px;
+      width: 100%;
+      background-color: #79d7ec;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    header nav a {
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 15px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+
+    header nav a:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    main {
+      padding-top: 85px;
+      padding-bottom: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    .hero-title {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .hero-title h1 {
+      margin: 0;
+      font-size: 28px;
+      color: #2589d0;
+    }
+
+    .hero-title h2 {
+      margin: 5px 0 0 0;
+      font-size: 16px;
+      color: #666;
+      font-weight: normal;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .card h3, .card h4 {
+      margin-top: 0;
+      color: #2589d0;
+      border-bottom: 2px solid #eef5f9;
+      padding-bottom: 8px;
+    }
+
+    .index-list ul {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+    }
+
+    .index-list li {
+      margin-bottom: 8px;
+    }
+
+    .index-list a {
+      color: #2589d0;
+      text-decoration: none;
+    }
+
+    .index-list a:hover {
+      text-decoration: underline;
+    }
+    footer {
+      background-color: #374344;
+      color: #fff;
+      text-align: center;
+      padding: 20px 0;
+      margin-top: 40px;
+    }
+
+    footer a {
+      margin: 0;
+      font-size: 32px;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loading-screen">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="#2589d0">
+      <circle cx="12" cy="3" r="3">
+        <animate attributeName="cx" values="12;21;3;12" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="cy" values="3;21;21;3" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="21" cy="21" r="3">
+        <animate attributeName="cx" values="21;3;12;21" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="cy" values="21;21;3;21" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="3" cy="21" r="3">
+        <animate attributeName="cx" values="3;12;21;3" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="cy" values="21;3;21;21" keyTimes="0;0.33;0.66;1" calcMode="spline" keySplines="0.1 0.9 0.2 1; 0.1 0.9 0.2 1; 0.1 0.9 0.2 1" dur="2.2s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
+    <p>もこの可愛さを読み込み中...</p>
+  </div>
+
+  <header>
+    <nav>
+      <a href="#">ホーム</a>
+      <a href="#">お問い合わせ</a>
+      <a href="#">その他の設定</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="hero-title">
+      <h1>ようこそ</h1>
+      <h2>髙木家のホームページへ</h2>
+    </div>
+
+    <section class="card index-list">
+      <h4>目次</h4>
+      <ul>
+        <li><a href="mokuteki.html">このホームページの目的</a></li>
+        <li><a href="mokonoseichou.html">もこの成長記録</a></li>
+        <li><a href="moko.html">もこ</a></li>
+        <li><a href="#">項目4(作成中)</a></li>
+      </ul>
+    </section>
+
+    <section class="card family-section">
+      <h3>家族紹介</h3>
+      <div class="family-select-wrapper">
+        <select id="family-select" onchange="calcOutput()">
+          <option value="">知りたい人を選択してください</option>
+          <option value="100">髙木ぱぱ</option>
+          <option value="90">髙木まま</option>
+          <option value="80">髙木お兄</option>
+          <option value="70">髙木お姉</option>
+          <option value="60">髙木とっしー</option>
+          <option value="50">髙木もこ(もこ族)</option>
+  <!--    
+          <option value="1">髙木もこ茶(もこ族)</option>
+          <option value="2">髙木もこ丸(もこ族)</option>
+          <option value="3">髙木もこここもここ(もこ族)</option>
+          <option value="4">髙木もっこ(もこ族)</option>
+          <option value="5">髙木まみむめもこ(もこ族)</option>
+          <option value="6">髙木も粉(もこ族)</option>     -->
+        </select>
+      </div>
+      <div id="output-box">
+        <p id="output-text" style="margin: 0;"></p>
+      </div>
+    </section>
+<!--
+    <section class="card">
+      <h3>ツール</h3>
+      <a href="line.html">クラスチャット</a> -->
+  </main>
+
+  <footer> 
+   <h2><a href="line.html">小ネタ募集中!!</a></h2>
+  </footer>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+          loadingScreen.classList.add('hidden');
+        }
+      }, Math.floor(Math.random() * 2000) + 1000);
+    });
+
+    function getOutputText(selectValue) {
+      if (!selectValue && selectValue !== "0") return "";
+      switch (String(selectValue)) {
+        case "100": return "メガネをしながら、中国語も頑張っています。<br>メガネしてるけど、サッカーと、バレーボールができます。";
+        case "90": return "ママは、家族の太陽です！";
+        case "80": return "秀才かつ天才";
+        case "70": return "ノーコメントです。";
+        case "60": return "髙木家のホームページの作者です。<br>のんびり趣味を満喫中。";
+        case "50" : return "好きなものは、パパの靴下と、お散歩‼";
+  /*    <case "1": return "好きなものは、パパの靴下と、お散歩‼";
+        case "2": return "好きなものは、ボール遊び‼";
+        case "3": return "好きなものは、寝ること‼";
+        case "4": return "好きなものは、遊ぶこと‼";
+        case "5": return "好きなものは、甘えること‼";
+        case "6": return "好きなものは、お散歩コースが変わること‼"; */
+        default: return "";
+      }
+    }
+
+    function calcOutput() {
+      const select = document.getElementById("family-select");
+      const outputBox = document.getElementById("output-box");
+      const outputText = document.getElementById("output-text");
+      
+      const text = getOutputText(select.value);
+      if (text) {
+        outputText.innerHTML = text;
+        outputBox.classList.add("active");
+      } else {
+        outputBox.classList.remove("active");
+      }
+    }
+    </script>
+</body>
+</html>

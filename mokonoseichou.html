@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>もこの成長記録|髙木家のホームページ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            cursor: var(mokoface);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            background: #fff;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        header h1 { margin: 0; font-size: 22px; }
+
+        .tabs { display: flex; gap: 8px; }
+
+        .tab-btn {
+            background: #eef2f1;
+            border: none;
+            padding: 9px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tab-btn.active { background: #4caf50; color: #fff; }
+        .tab-btn .count {
+            background: rgba(0,0,0,0.12);
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 12px;
+        }
+
+        .auth-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .auth-btn:hover { opacity: 0.85; }
+
+        #editor-controls {
+            display: none;
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        body.editable #editor-controls { display: flex; }
+        body.editable .tabs { display: none; }
+
+        .control-group { display: flex; align-items: center; gap: 8px; }
+
+        #feed-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #777;
+        }
+        body.editable #feed-bar { display: none; }
+
+        .shuffle-btn {
+            background: #fff;
+            border: 1px solid #cfd8dc;
+            color: #546e7a;
+            padding: 7px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .shuffle-btn:hover { background: #eceff1; }
+
+        .content-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .category-badge {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 20px;
+            padding: 3px 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .category-badge.hot::after {
+            content: " ★よく見る";
+            color: #ef6c00;
+        }
+
+        .date-badge {
+            font-size: 12px;
+            color: #90a4ae;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .editable .date-badge:empty ::after {
+            content: "日付なし";
+            color: #bbb;
+        }
+
+        .date-edit {
+            display: none;
+            padding: 3px 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .editable .date-edit { display: inline-block; }
+
+        .card-actions {
+            display: none;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-left: auto;
+        }
+        .editable .card-actions { display: flex; }
+
+        .action-btn {
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-delete { background: #ff5252; }
+        .btn-mute { background: #607d8b; }
+        .btn-bubble { background: #ff9800; }
+        .btn-poll { background: #00bcd4; }
+        .action-btn:hover { opacity: 0.8; }
+
+        .cat-select { display: none; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .editable .cat-select { display: inline-block; }
+
+        .resizable-box {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            resize: both;
+            overflow: auto;
+            border: 1px dashed transparent;
+            padding: 5px;
+            max-width: 100%;
+            cursor: var(mokoface);
+        }
+        .editable .resizable-box { border-color: #ccc; }
+        .resizable-box::-webkit-resizer { cursor: var(moko-hidariue); }
+
+        .resizable-box img,
+        .resizable-box video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .editable-text-container {
+            max-height: 100px;
+            overflow: hidden;
+            position: relative;
+            transition: max-height 0.3s ease;
+            margin-top: 6px;
+        }
+        .editable-text-container.expanded { max-height: none; }
+        .editable .editable-text-container { max-height: none !important; overflow: visible; }
+
+        .editable-text {
+            outline: none;
+            width: 100%;
+            min-height: 50px;
+            word-break: break-word;
+            line-height: 1.6;
+        }
+        .editable .editable-text {
+            background-color: #fffff0;
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .speech-bubble {
+            position: relative;
+            background: #e1f5fe;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 2px solid #81d4fa;
+        }
+        .speech-bubble ::before {
+            content: "";
+            position: absolute;
+            top: -20px; left: 20px;
+            border-width: 10px; border-style: solid;
+            border-color: transparent transparent #81d4fa transparent;
+        }
+        .speech-bubble ::after {
+            content: "";
+            position: absolute;
+            top: -16px; left: 22px;
+            border-width: 8px; border-style: solid;
+            border-color: transparent transparent #e1f5fe transparent;
+        }
+
+        .read-more-btn {
+            background: none;
+            border: none;
+            color: #2196F3;
+            cursor: pointer;
+            padding: 8px 0 0 0;
+            font-weight: bold;
+            display: none;
+            text-align: left;
+            font-size: 14px;
+        }
+        .read-more-btn :hover { text-decoration: underline; }
+        .editable .read-more-btn { display: none !important; }
+
+        .poll-container {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .poll-question { font-weight: bold; margin-bottom: 8px; }
+        .poll-options { display: flex; flex-direction: column; gap: 6px; }
+
+        .poll-option-btn {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .poll-option-btn :hover { background: #f1f1f1; }
+        .poll-option-btn.voted { border-color: #2196F3; background: #e3f2fd; font-weight: bold; }
+
+        .card-footer {
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .like-btn {
+            background: none;
+            border: 1px solid #ff4081;
+            color: #ff4081;
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .like-btn :hover { background: #ffebee; }
+        .like-btn.liked { background: #ff4081; color: #fff; }
+
+        .empty-state {
+            background: #fff;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            color: #888;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            line-height: 1.8;
+        }
+
+        #pass-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #pass-modal.open { display: flex; }
+
+        .pass-box {
+            background: #fff;
+            padding: 22px;
+            border-radius: 10px;
+            width: min(92vw, 380px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+        }
+        .pass-box h3 { margin: 0 0 12px; font-size: 17px; }
+
+        #pass-input {
+            width: 100%;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 16px;
+            letter-spacing: 1px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            color: #4caf50;
+        }
+
+        .pass-note { font-size: 12px; color: #888; margin: 8px 0 14px; }
+        .pass-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            header h1 { font-size: 18px; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>もこの成長記録</h1>
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-home" onclick="switchView('home')">
+                <i class="fa fa-house"></i> タイムライン
+            </button>
+            <button class="tab-btn" id="tab-fav" onclick="switchView('fav')">
+                <i class="fa fa-heart"></i> お気に入り <span class="count" id="fav-count">0</span>
+            </button>
+        </div>
+        <button class="auth-btn" onclick="authenticate()">編集モード</button>
+    </header>
+
+    <div id="editor-controls">
+        <div class="control-group">
+            <label><i class="fa fa-image"></i> 写真:</label>
+            <input type="file" id="image-input" accept="image/*">
+        </div>
+
+        <div class="control-group">
+            <label><i class="fa fa-video-camera"></i> 動画:</label>
+            <input type="file" id="video-input" accept="video/*">
+        </div>
+
+        <div class="control-group">
+            <label><i class="fa fa-tag"></i> 種目:</label>
+            <select id="default-category"></select>
+        </div>
+
+        <div class="control-group">
+            <label><i class="fa fa-font"></i> フォント:</label>
+            <select id="font-family" onchange="applyTextStyle()">
+                <option value="sans-serif">ゴシック体</option>
+                <option value="serif">明朝体</option>
+                <option value="cursive">手書き風</option>
+                <option value="monospace">等幅</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label><i class="fa fa-text-height"></i> サイズ:</label>
+            <input type="number" id="font-size" value="16" min="10" max="72" onchange="applyTextStyle()"> px
+        </div>
+
+        <div class="control-group">
+            <label><i class="fa fa-paint-brush"></i> 色:</label>
+            <input type="color" id="font-color" value="#333333" onchange="applyTextStyle()">
+        </div>
+
+        <button class="auth-btn" style="background-color: #2196F3;" onclick="addTextCard()">📝 文字だけ投稿</button>
+        <button class="auth-btn" style="background-color: #00bcd4;" onclick="addPollCardPrompt()">📊 投票を追加</button>
+        <button class="auth-btn" style="background-color: #ff9800;" onclick="saveData(true)">💾 保存</button>
+        <button class="auth-btn" style="background-color: #9c27b0;" onclick="exportData()">📤 書き出し</button>
+        <label class="auth-btn" style="background-color: #607d8b; cursor: pointer; margin: 0;">
+            📥 読込 <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(event)">
+        </label>
+        <button class="auth-btn" style="background-color: #795548;" onclick="resetScores()">🔄 好み記録リセット</button>
+
+        <button class="auth-btn" style="background-color: #f44336; margin-left: auto;" onclick="endEditing()">❌ 編集を終わる</button>
+    </div>
+
+    <div id="feed-bar">
+        <span id="feed-note"></span>
+        <button class="shuffle-btn" onclick="reshuffle()"><i class="fa fa-shuffle"></i> 並べかえ</button>
+    </div>
+
+    <main id="main-content"></main>
+
+    <footer>
+        <p style="text-align: center; color: #888; margin-top: 40px;">&copy; 髙木家 All Rights Reserved.</p>
+    </footer>
+
+    <div id="pass-modal">
+        <div class="pass-box">
+            <h3><i class="fa fa-lock"></i> パスワードを入力してください</h3>
+            <input type="text" id="pass-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <p class="pass-note">入力した文字は「moko」で隠して表示されます。</p>
+            <div class="pass-btns">
+                <button class="auth-btn" onclick="submitPass()">OK</button>
+                <button class="auth-btn" style="background-color:#9e9e9e;" onclick="closePassModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const PASS = "takakimoko";
+    const STORE_KEY = "takagi_moko_data_v2";
+    const OLD_KEY   = "takagi_moko_data";
+    const CATEGORIES = ["日常", "おでかけ", "ごはん", "あそび", "きねん日","もこ族","もこ(最近)","もこ(昔)","もこ(結構昔)","流行り","お知らせ","動画", "その他"];
+
+    const MOKO_STAGES = ["もこ(最近)", "もこ(昔)", "もこ(結構昔)"];
+    const MOKO_MONTHS_TO_OLD = 1;
+    const MOKO_MONTHS_TO_VERYOLD = 13;
+
+    let posts = [];
+    let categoryScores = {};
+    let feedOrder = [];
+    let isEditing = false;
+    let currentView = "home";
+    let selectedTextElement = null;
+    let viewObserver = null;
+    let passReal = ""; 
+
+    const memoryStore = {};
+    const store = {
+        get(k) { try { return localStorage.getItem(k); } catch (e) { return memoryStore[k] || null; } },
+        set(k, v) { try { localStorage.setItem(k, v); } catch (e) { memoryStore[k] = v; } }
+    };
+
+    window.onload = function () {
+        buildCategorySelect();
+        loadData();
+        if (applyCategoryAging()) saveData();
+        reshuffle();
+    };
+
+    function monthsPassed(from, to) {
+        const a = new Date(from);
+        const b = new Date(to);
+        if (isNaN(a.getTime())) return -1;
+        let m = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+        if (b.getDate() < a.getDate()) m -= 1;
+        return m;
+    }
+
+    function mokoStageFor(ts) {
+        const m = monthsPassed(ts, Date.now());
+        if (m >= MOKO_MONTHS_TO_VERYOLD) return "もこ(結構昔)";
+        if (m >= MOKO_MONTHS_TO_OLD) return "もこ(昔)";
+        return "もこ(最近)";
+    }
+
+    function applyCategoryAging() {
+        let changed = false;
+        posts.forEach(p => {
+            if (!p.createdAt) return;
+            const nowIdx = MOKO_STAGES.indexOf(p.category);
+            if (nowIdx === -1) return;
+            const nextIdx = MOKO_STAGES.indexOf(mokoStageFor(p.createdAt));
+            if (nextIdx > nowIdx) {
+                p.category = MOKO_STAGES[nextIdx];
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
+    function uid() {
+        return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function normalizePost(item) {
+        return {
+            id: item.id || uid(),
+            type: item.type || "text",
+            src: item.src || null,
+            mediaWidth: item.mediaWidth || "300px",
+            mediaHeight: item.mediaHeight || "auto",
+            text: item.text || "",
+            textStyle: item.textStyle || "",
+            isMuted: !!item.isMuted,
+            isBubble: !!item.isBubble,
+            category: item.category || (item.type === "video" ? "動画" : "日常"),
+            likes: parseInt(item.likes) || 0,
+            isLiked: !!item.isLiked,
+            pollData: item.pollData || null,
+            createdAt: item.createdAt || null
+        };
+    }
+
+    function pad2(n) {
+        return n < 10 ? "0" + n : "" + n;
+    }
+
+    function formatDate(ts) {
+        if (!ts) return "";
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return "";
+        const week = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
+        return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日（" + week + "） " +
+               pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    }
+
+    function dateInputValue(ts) {
+        if (!ts) return "";
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return "";
+        return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    }
+
+    function dateBadgeHTML(ts) {
+        return ts ? '<i class="fa fa-calendar-day"></i> ' + escapeHTML(formatDate(ts)) : "";
+    }
+
+    function changeDate(input) {
+        const card = input.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        if (!p) return;
+
+        if (!input.value) {
+            p.createdAt = null;
+        } else {
+            const parts = input.value.split("-");
+            const base = p.createdAt ? new Date(p.createdAt) : new Date();
+            const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]),
+                               base.getHours(), base.getMinutes());
+            p.createdAt = d.getTime();
+        }
+        card.querySelector(".date-badge").innerHTML = dateBadgeHTML(p.createdAt);
+        saveData();
+    }
+
+    function loadData() {
+        const raw = store.get(STORE_KEY);
+        if (raw) {
+            try {
+                const obj = JSON.parse(raw);
+                applyLoaded(obj);
+                return;
+            } catch (e) {}
+        }
+        const old = store.get(OLD_KEY);
+        if (old) {
+            try {
+                posts = JSON.parse(old).map(normalizePost);
+                categoryScores = {};
+                saveData();
+                return;
+            } catch (e) {}
+        }
+        posts = [normalizePost({
+            text: "ようこそ！パスワードを入力して編集を始めてください。",
+            category: "日常",
+            createdAt: Date.now()
+        })];
+    }
+
+    function applyLoaded(obj) {
+        if (Array.isArray(obj)) {
+            posts = obj.map(normalizePost);
+            categoryScores = {};
+        } else {
+            posts = (obj.posts || []).map(normalizePost);
+            categoryScores = obj.scores || {};
+        }
+    }
+
+    function saveData(showAlert) {
+        syncFromDOM();
+        store.set(STORE_KEY, JSON.stringify({
+            version: 2,
+            posts: posts,
+            scores: categoryScores
+        }));
+        if (showAlert === true) alert("変更を保存しました！");
+    }
+
+    function syncFromDOM() {
+        document.querySelectorAll(".content-card").forEach(card => {
+            const p = getPost(card.dataset.id);
+            if (!p) return;
+            const textEl = card.querySelector(".editable-text");
+            if (textEl) {
+                p.text = textEl.innerHTML;
+                p.textStyle = textEl.style.cssText;
+            }
+            const box = card.querySelector(".resizable-box");
+            if (box) {
+                if (box.style.width) p.mediaWidth = box.style.width;
+                if (box.style.height) p.mediaHeight = box.style.height;
+            }
+        });
+    }
+
+    function getPost(id) {
+        return posts.find(p => p.id === id);
+    }
+
+    function bumpScore(category, amount) {
+        if (!category) return;
+        const now = categoryScores[category] || 0;
+        categoryScores[category] = Math.min(20, now + amount);
+    }
+
+    function weightOf(category) {
+        return 1 + (categoryScores[category] || 0) * 0.6;
+    }
+
+    function topCategory() {
+        let best = null, bestScore = 0;
+        Object.keys(categoryScores).forEach(c => {
+            if (categoryScores[c] > bestScore) { best = c; bestScore = categoryScores[c]; }
+        });
+        return bestScore >= 2 ? best : null;
+    }
+
+    function reshuffle() {
+        feedOrder = posts
+            .map(p => ({ id: p.id, key: Math.pow(Math.random(), 1 / weightOf(p.category)) }))
+            .sort((a, b) => b.key - a.key)
+            .map(x => x.id);
+        render();
+    }
+
+    function switchView(view) {
+        currentView = view;
+        document.getElementById("tab-home").classList.toggle("active", view === "home");
+        document.getElementById("tab-fav").classList.toggle("active", view === "fav");
+        render();
+    }
+
+    function currentList() {
+        if (isEditing) return posts;
+        if (currentView === "fav") return posts.filter(p => p.isLiked);
+        const ordered = feedOrder.map(getPost).filter(Boolean);
+        posts.forEach(p => { if (!feedOrder.includes(p.id)) ordered.push(p); });
+        return ordered;
+    }
+
+    function render() {
+        const main = document.getElementById("main-content");
+        main.innerHTML = "";
+
+        const list = currentList();
+
+        if (list.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+            empty.innerHTML = currentView === "fav"
+                ? '<i class="fa fa-heart" style="font-size:28px;color:#ffcdd2"></i><br>まだお気に入りはありません。<br>気に入った投稿の「いいね！」を押すと、ここに集まります。'
+                : "投稿がありません。編集モードから追加してください。";
+            main.appendChild(empty);
+        } else {
+            list.forEach(p => main.appendChild(cardElement(p)));
+        }
+
+        updateTabCounts();
+        updateFeedNote();
+        setTimeout(checkReadMoreVisibility, 50);
+        setupViewObserver();
+    }
+
+    function updateTabCounts() {
+        document.getElementById("fav-count").innerText = posts.filter(p => p.isLiked).length;
+    }
+
+    function updateFeedNote() {
+        const note = document.getElementById("feed-note");
+        if (currentView === "fav") {
+            note.innerText = "いいね！した投稿だけを表示しています";
+            return;
+        }
+        const top = topCategory();
+        note.innerText = top
+            ? "毎回ランダムに並べています（よく見る種目「" + top + "」が上に出やすくなっています）"
+            : "毎回ランダムに並べています";
+    }
+
+    function escapeHTML(str) {
+        return String(str).replace(/[&'`"<>]/g, m => ({
+            "&": "&amp;", "'": "&#x27;", "`": "&#x60;", '"': "&quot;", "<": "&lt;", ">": "&gt;"
+        }[m]));
+    }
+
+    function cardElement(p) {
+        const card = document.createElement("div");
+        card.className = "content-card";
+        card.dataset.id = p.id;
+
+        let mediaHTML = "";
+        let muteBtn = "";
+        if (p.type === "image" && p.src) {
+            mediaHTML = '<div class="resizable-box" style="width:' + p.mediaWidth + ';height:' + p.mediaHeight + '">' +
+                        '<img src="' + p.src + '" alt="成長記録写真"></div>';
+        } else if (p.type === "video" && p.src) {
+            mediaHTML = '<div class="resizable-box" style="width:' + p.mediaWidth + ';height:' + p.mediaHeight + '">' +
+                        '<video src="' + p.src + '" controls ' + (p.isMuted ? "muted" : "") + '></video></div>';
+            muteBtn = '<button class="action-btn btn-mute" onclick="toggleMute(this)"><i class="fa fa-volume-xmark"></i> ミュート切替</button>';
+        }
+
+        const hot = topCategory() === p.category ? " hot" : "";
+        const options = CATEGORIES.map(c =>
+            '<option value="' + escapeHTML(c) + '"' + (c === p.category ? " selected" : "") + '>' + escapeHTML(c) + "</option>"
+        ).join("");
+
+        card.innerHTML =
+            '<div class="card-head">' +
+                '<span class="category-badge' + hot + '"><i class="fa fa-tag"></i> ' + escapeHTML(p.category) + "</span>" +
+                '<span class="date-badge">' + dateBadgeHTML(p.createdAt) + "</span>" +
+                '<select class="cat-select" onchange="changeCategory(this)">' + options + "</select>" +
+                '<input type="date" class="date-edit" value="' + dateInputValue(p.createdAt) + '" onchange="changeDate(this)">' +
+                '<div class="card-actions">' +
+                    muteBtn +
+                    '<button class="action-btn btn-bubble" onclick="toggleBubble(this)"><i class="fa fa-comment"></i> 吹き出し</button>' +
+                    '<button class="action-btn btn-poll" onclick="toggleCardPoll(this)"><i class="fa fa-chart-bar"></i> 投票追加</button>' +
+                    '<button class="action-btn btn-delete" onclick="deleteCard(this)"><i class="fa fa-trash"></i> 削除</button>' +
+                "</div>" +
+            "</div>" +
+            mediaHTML +
+            '<div class="text-wrapper" style="width:100%">' +
+                '<div class="editable-text-container' + (p.isBubble ? " speech-bubble" : "") + '">' +
+                    '<div class="editable-text" contenteditable="' + isEditing + '" onclick="selectText(this)" style="' + p.textStyle + '">' +
+                        p.text +
+                    "</div>" +
+                "</div>" +
+                '<button class="read-more-btn" onclick="toggleReadMore(this)">もっと見る</button>' +
+            "</div>" +
+            '<div class="poll-wrapper">' + pollHTML(p) + "</div>" +
+            '<div class="card-footer">' +
+                '<button class="like-btn' + (p.isLiked ? " liked" : "") + '" onclick="handleLike(this)">' +
+                    '<i class="fa fa-heart"></i> ' + (p.isLiked ? "お気に入り" : "いいね！") +
+                    ' <span class="like-count">' + p.likes + "</span>" +
+                "</button>" +
+            "</div>";
+
+        return card;
+    }
+
+    function pollHTML(p) {
+        const poll = p.pollData;
+        if (!poll || !poll.options) return "";
+        const total = poll.options.reduce((s, o) => s + o.votes, 0);
+        const voted = (poll.userVotedIndex === 0 || poll.userVotedIndex) ? poll.userVotedIndex : null;
+
+        const opts = poll.options.map((o, i) =>
+            '<button class="poll-option-btn' + (voted === i ? " voted" : "") + '" onclick="votePoll(this,' + i + ')">' +
+                "<span>" + escapeHTML(o.text) + (voted === i ? "（あなたの投票）" : "") + "</span>" +
+                "<span><strong>" + o.votes + "</strong> 票</span>" +
+            "</button>"
+        ).join("");
+
+        return '<div class="poll-container">' +
+                    '<div class="poll-question"><i class="fa fa-square-poll-vertical"></i> ' + escapeHTML(poll.question) +
+                    " （総投票数: " + total + "人）</div>" +
+                    '<div class="poll-options">' + opts + "</div>" +
+                "</div>";
+    }
+
+    function handleLike(btn) {
+        const card = btn.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        if (!p) return;
+
+        p.isLiked = !p.isLiked;
+        p.likes = Math.max(0, p.likes + (p.isLiked ? 1 : -1));
+        if (p.isLiked) bumpScore(p.category, 3);
+
+        saveData();
+
+        if (currentView === "fav" && !p.isLiked) {
+            render();
+        } else {
+            btn.classList.toggle("liked", p.isLiked);
+            btn.innerHTML = '<i class="fa fa-heart"></i> ' + (p.isLiked ? "お気に入り" : "いいね！") +
+                            ' <span class="like-count">' + p.likes + "</span>";
+            updateTabCounts();
+            updateFeedNote();
+        }
+    }
+
+    function votePoll(btn, index) {
+        const card = btn.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        if (!p || !p.pollData) return;
+
+        if (p.pollData.userVotedIndex !== null && p.pollData.userVotedIndex !== undefined) {
+            alert("すでにこの投票に参加しています!（1人1票まで）");
+            return;
+        }
+        p.pollData.options[index].votes += 1;
+        p.pollData.userVotedIndex = index;
+        bumpScore(p.category, 2);
+        saveData();
+
+        card.querySelector(".poll-wrapper").innerHTML = pollHTML(p);
+        updateFeedNote();
+        alert("投票ありがとうございました！");
+    }
+
+    function changeCategory(select) {
+        const card = select.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        if (!p) return;
+        p.category = select.value;
+        card.querySelector(".category-badge").innerHTML = '<i class="fa fa-tag"></i> ' + escapeHTML(p.category);
+        saveData();
+    }
+
+    function toggleBubble(btn) {
+        const card = btn.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        p.isBubble = !p.isBubble;
+        card.querySelector(".editable-text-container").classList.toggle("speech-bubble", p.isBubble);
+        saveData();
+    }
+
+    function toggleMute(btn) {
+        const card = btn.closest(".content-card");
+        const p = getPost(card.dataset.id);
+        const video = card.querySelector("video");
+        if (!video) return;
+        video.muted = !video.muted;
+        p.isMuted = video.muted;
+        alert(video.muted ? "動画をミュートにしました" : "動画のミュートを解除しました");
+        saveData();
+    }
+
+    function deleteCard(btn) {
+        if (!confirm("このカードを削除してもよろしいですか？")) return;
+        const id = btn.closest(".content-card").dataset.id;
+        syncFromDOM();
+        posts = posts.filter(p => p.id !== id);
+        feedOrder = feedOrder.filter(x => x !== id);
+        saveData();
+        render();
+    }
+
+    function toggleCardPoll(btn) {
+        const card = btn.closest(".content-card");
+        const p = getPost(card.dataset.id);
+
+        if (p.pollData) {
+            if (confirm("この投票を削除しますか？")) {
+                p.pollData = null;
+                card.querySelector(".poll-wrapper").innerHTML = "";
+                saveData();
+            }
+            return;
+        }
+        const poll = askPoll("今日の感想を教えて！", "楽しかった,普通,眠かった");
+        if (!poll) return;
+        p.pollData = poll;
+        card.querySelector(".poll-wrapper").innerHTML = pollHTML(p);
+        saveData();
+    }
+
+    function askPoll(defQ, defOpts) {
+        const question = prompt("投票の質問を入力してください:", defQ);
+        if (!question) return null;
+        const optionsStr = prompt("選択肢をカンマ(,)区切りで入力してください:", defOpts);
+        if (!optionsStr) return null;
+        const arr = optionsStr.split(",").map(s => s.trim()).filter(s => s.length > 0);
+        if (arr.length === 0) return null;
+        return {
+            question: question,
+            options: arr.map(t => ({ text: t, votes: 0 })),
+            userVotedIndex: null
+        };
+    }
+
+    function toggleReadMore(btn) {
+        const container = btn.previousElementSibling;
+        const open = !container.classList.contains("expanded");
+        container.classList.toggle("expanded", open);
+        btn.innerText = open ? "閉じる" : "もっと見る";
+        if (open) {
+            const p = getPost(btn.closest(".content-card").dataset.id);
+            if (p) { bumpScore(p.category, 1); saveData(); updateFeedNote(); }
+        }
+    }
+
+    function checkReadMoreVisibility() {
+        document.querySelectorAll(".text-wrapper").forEach(w => {
+            const textEl = w.querySelector(".editable-text");
+            const btn = w.querySelector(".read-more-btn");
+            if (!textEl || !btn) return;
+            btn.style.display = textEl.scrollHeight > 100 ? "block" : "none";
+        });
+    }
+
+    function setupViewObserver() {
+        if (viewObserver) viewObserver.disconnect();
+        if (isEditing || !("IntersectionObserver" in window)) return;
+
+        viewObserver = new IntersectionObserver(entries => {
+            let changed = false;
+            entries.forEach(e => {
+                if (!e.isIntersecting || e.target.dataset.counted) return;
+                e.target.dataset.counted = "1";
+                const p = getPost(e.target.dataset.id);
+                if (p) { bumpScore(p.category, 0.3); changed = true; }
+            });
+            if (changed) { saveData(); updateFeedNote(); }
+        }, { threshold: 0.6 });
+
+        document.querySelectorAll(".content-card").forEach(c => viewObserver.observe(c));
+    }
+
+    function resetScores() {
+        if (!confirm("「よく見る種目」の記録をリセットしますか？")) return;
+        categoryScores = {};
+        saveData();
+        updateFeedNote();
+        alert("好みの記録をリセットしました。");
+    }
+
+    function buildCategorySelect() {
+        const sel = document.getElementById("default-category");
+        sel.innerHTML = CATEGORIES.map(c => '<option value="' + c + '">' + c + "</option>").join("");
+    }
+
+    function defaultCategory() {
+        const sel = document.getElementById("default-category");
+        return sel ? sel.value : "日常";
+    }
+
+    function addPost(data) {
+        syncFromDOM();
+        const p = normalizePost(data);
+        if (!p.createdAt) p.createdAt = Date.now();
+        posts.unshift(p);
+        feedOrder.unshift(p.id);
+        saveData();
+        render();
+    }
+
+    function addTextCard() {
+        addPost({
+            type: "text",
+            text: "新しいメッセージや日記を入力してください...",
+            category: defaultCategory()
+        });
+    }
+
+    function addPollCardPrompt() {
+        const poll = askPoll("今度のお出かけはどこに行きたい？", "動物園,公園,遊園地,おうち");
+        if (!poll) return;
+        addPost({
+            type: "text",
+            text: "📊 アンケート投票：" + escapeHTML(poll.question),
+            category: defaultCategory(),
+            pollData: poll
+        });
+    }
+
+    document.getElementById("image-input").addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            addPost({ type: "image", src: ev.target.result, text: "写真の説明を書いてください...", category: defaultCategory() });
+            e.target.value = "";
+        };
+        reader.readAsDataURL(file);
+    });
+
+    document.getElementById("video-input").addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            addPost({ type: "video", src: ev.target.result, text: "動画の説明を書いてください...", category: "動画" });
+            e.target.value = "";
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function mokoMask(n) {
+        return "moko".repeat(Math.ceil(n / 4) + 1).slice(0, n);
+    }
+
+    function passInput() {
+        return document.getElementById("pass-input");
+    }
+
+    function updateMask() {
+        const inp = passInput();
+        inp.value = mokoMask(passReal.length);
+        const end = inp.value.length;
+        inp.setSelectionRange(end, end);
+    }
+
+    function authenticate() {
+        if (isEditing) { alert("すでに編集モードです。"); return; }
+        passReal = "";
+        passInput().value = "";
+        document.getElementById("pass-modal").classList.add("open");
+        setTimeout(() => passInput().focus(), 0);
+    }
+
+    function closePassModal() {
+        document.getElementById("pass-modal").classList.remove("open");
+        passReal = "";
+        passInput().value = "";
+    }
+
+    function submitPass() {
+        const value = passReal;
+        closePassModal();
+        if (value === PASS) {
+            isEditing = true;
+            document.body.classList.add("editable");
+            render();
+        } else {
+            alert("パスワードが違います。");
+        }
+    }
+
+    (function setupPassInput() {
+        const inp = passInput();
+
+        inp.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { e.preventDefault(); submitPass(); return; }
+            if (e.key === "Escape") { e.preventDefault(); closePassModal(); return; }
+            if (e.key === "Backspace") { e.preventDefault(); passReal = passReal.slice(0, -1); updateMask(); return; }
+            if (e.key === "Delete") { e.preventDefault(); return; }
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key.length === 1) { e.preventDefault(); passReal += e.key; updateMask(); }
+        });
+
+        inp.addEventListener("paste", function (e) {
+            e.preventDefault();
+            const t = (e.clipboardData || window.clipboardData).getData("text") || "";
+            passReal += t;
+            updateMask();
+        });
+
+        inp.addEventListener("input", function () {
+            const shown = inp.value;
+            const expected = mokoMask(passReal.length);
+            if (shown === expected) return;
+            if (shown.length > expected.length && shown.indexOf(expected) === 0) {
+                passReal += shown.slice(expected.length);
+            } else if (shown.length < passReal.length) {
+                passReal = passReal.slice(0, shown.length);
+            }
+            updateMask();
+        });
+
+        inp.addEventListener("click", updateMask);
+
+        document.getElementById("pass-modal").addEventListener("click", function (e) {
+            if (e.target.id === "pass-modal") closePassModal();
+        });
+    })();
+
+    function endEditing() {
+        if (!isEditing) return;
+        saveData();
+        isEditing = false;
+        document.body.classList.remove("editable");
+        currentView = "home";
+        document.getElementById("tab-home").classList.add("active");
+        document.getElementById("tab-fav").classList.remove("active");
+        reshuffle();
+        alert("変更を保存し、編集モードを終了しました。");
+    }
+
+    function selectText(el) {
+        if (!isEditing) return;
+        selectedTextElement = el;
+    }
+
+    function applyTextStyle() {
+        if (!selectedTextElement) return;
+        selectedTextElement.style.fontFamily = document.getElementById("font-family").value;
+        selectedTextElement.style.fontSize = document.getElementById("font-size").value + "px";
+        selectedTextElement.style.color = document.getElementById("font-color").value;
+        saveData();
+        setTimeout(checkReadMoreVisibility, 50);
+    }
+
+    function exportData() {
+        saveData();
+        const blob = new Blob([store.get(STORE_KEY)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "moko_record_data.json";
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                applyLoaded(JSON.parse(e.target.result));
+                applyCategoryAging();
+                saveData();
+                reshuffle();
+                alert("データを正常に読み込みました！");
+            } catch (err) {
+                alert("ファイルの読み込みに失敗しました。");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = "";
+    }
+
+    window.addEventListener("resize", () => {
+        if (!isEditing) checkReadMoreVisibility();
+    });
+    </script>
+</body>
+</html>

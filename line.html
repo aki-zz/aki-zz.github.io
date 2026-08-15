@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>クラスチャット</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      margin: 0;
+      color: #333;
+    }
+    .container {
+      background: #fff;
+      width: 100%;
+      max-width: 450px;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h2 { margin-top: 0; text-align: center; color: #333; }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 6px;
+      background: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #0056b3; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary { background: #6c757d; }
+    .btn-secondary:hover { background: #545b62; }
+    .btn-test { background: #17a2b8; }
+    .btn-test:hover { background: #117a8b; }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    #status-message, #lib-status {
+      font-weight: bold;
+      color: #007bff;
+      text-align: center;
+      margin-top: 10px;
+      min-height: 20px;
+      font-size: 13px;
+      word-break: break-all;
+      white-space: pre-wrap;
+    }
+    #lib-status { margin-top: 0; margin-bottom: 8px; }
+    .error-msg { color: #dc3545 !important; }
+    .ok-msg { color: #28a745 !important; }
+    .warn-msg {
+      color: #b8860b !important;
+      font-size: 12px !important;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    #chat-screen { display: none; }
+    .class-info {
+      background: #e9ecef;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 12px;
+      word-break: break-all;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .copy-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .copy-btn:hover { background: #545b62; }
+    .exit-btn { background: #dc3545; }
+    .exit-btn:hover { background: #b02a37; }
+    .topic-card {
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      color: #856404;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-weight: bold;
+      text-align: center;
+      word-break: break-all;
+    }
+    #host-topic-section {
+      margin-bottom: 12px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px dashed #ccc;
+    }
+    #messages {
+      height: 320px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 10px;
+      overflow-y: auto;
+      background: #fff;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .message-container {
+      display: flex;
+      flex-direction: column;
+      max-width: 80%;
+    }
+    .message-container.my-msg { align-self: flex-end; align-items: flex-end; }
+    .message-container.other-msg { align-self: flex-start; align-items: flex-start; }
+    .sender-name { font-size: 11px; color: #666; margin-bottom: 2px; padding: 0 4px; }
+    .message {
+      padding: 8px 12px;
+      border-radius: 12px;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .my-msg .message { background: #e3f2fd; color: #0d47a1; }
+    .input-group { display: flex; flex-direction: column; gap: 8px; }
+    .input-row { display: flex; gap: 8px; }
+    .input-row input { flex: 1; margin: 0; }
+    .input-row button { width: auto; margin: 0; padding: 0 16px; white-space: nowrap; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 400px;
+    }
+    .password-wrapper { position: relative; display: flex; align-items: center; width: 100%; }
+    .password-wrapper input { padding-right: 45px; }
+    .toggle-pass-btn {
+      position: absolute;
+      right: 8px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+      user-select: none;
+      color: #666;
+    }
+    .back-link {
+      margin-top: 16px;
+      display: inline-block;
+      color: #007bff;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .back-link:hover { text-decoration: underline; }
+
+    .koneta-box {
+      margin-top: 20px;
+      padding: 14px;
+      background: #f1f8e9;
+      border: 1px solid #c5e1a5;
+      border-radius: 8px;
+    }
+    .koneta-box .btn { background: #4caf50; }
+    .koneta-box .btn:hover { background: #3d8b40; }
+    .koneta-box .btn-secondary { background: #6c757d; }
+    .section-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: #33691e;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    .small-note { font-size: 12px; color: #666; margin: 4px 0 8px; line-height: 1.5; }
+    .inline-error { color: #dc3545; font-size: 13px; min-height: 18px; text-align: center; }
+    .diag-box {
+      margin-top: 16px;
+      padding: 10px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    #diag-result {
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #555;
+      min-height: 18px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div id="mode-screen">
+    <h2>クラスチャット</h2>
+    <div id="protocol-warning" class="warn-msg" style="display:none;">
+      ⚠️ file:// で開いています。うまく接続できない場合は、簡易サーバー経由（http://localhost）で開いてください。
+    </div>
+    <div id="lib-status"></div>
+    <button class="btn" id="btn-create" onclick="openCreateModal()">クラスを作成する</button>
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+    <div id="status-message"></div>
+    <input type="text" id="join-id-input" placeholder="8文字のクラスIDを入力" autocomplete="off" spellcheck="false">
+    <div class="password-wrapper">
+      <input type="password" id="join-pass-input" inputmode="text" placeholder="パスワードを入力(4〜16文字)" maxlength="16" onkeydown="if(event.key==='Enter') joinClass()" autocomplete="off" spellcheck="false">
+      <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('join-pass-input')">👁️</button>
+    </div>
+    <button class="btn btn-secondary" id="btn-join" onclick="joinClass()">クラスに参加する</button>
+
+    <div class="koneta-box">
+      <div class="section-title">小ネタのクラス（常設）</div>
+      <div class="small-note">
+        入室コード（8文字）とパスワードを入れると参加できます。<br>
+        途中で抜けても、同じ端末なら続きから再開できます。
+      </div>
+      <input type="text" id="koneta-code-input" placeholder="入室コード（8文字）" onkeydown="if(event.key==='Enter') joinKoneta()" autocomplete="off" spellcheck="false">
+      <div class="password-wrapper">
+        <input type="password" id="koneta-pass-input" inputmode="text" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter') joinKoneta()" autocomplete="off" spellcheck="false">
+        <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('koneta-pass-input')">👁️</button>
+      </div>
+      <div id="koneta-error" class="inline-error"></div>
+      <button class="btn" id="btn-koneta-join" onclick="joinKoneta()">小ネタのクラスに参加する</button>
+      <button class="btn btn-secondary" id="btn-koneta-host" onclick="openKonetaHostModal()">小ネタのクラスをホストとして開く</button>
+    </div>
+
+    <div class="diag-box">
+      <div class="small-note" style="margin:0 0 6px; text-align:center;">
+        つながらないときは、まずこれを押してどこで失敗しているか確認してください。
+      </div>
+      <button class="btn btn-test" id="btn-test" onclick="testConnection()">接続テスト</button>
+      <div id="diag-result"></div>
+    </div>
+  </div>
+
+  <div id="chat-screen">
+    <div class="class-info">
+      <span id="display-class-label">ID:</span>
+      <span id="display-class-id"></span>
+      <button class="copy-btn" onclick="copyClassId()">コピー</button>
+      <button class="copy-btn exit-btn" onclick="leaveClass()">退出</button>
+    </div>
+
+    <div class="topic-card">
+      お題: <span id="display-topic">（お題はまだ設定されていません）</span>
+    </div>
+
+    <div id="host-topic-section" style="display: none;">
+      <div class="input-row">
+        <input type="text" id="topic-input" placeholder="お題を入力..." onkeydown="if(event.key==='Enter') updateTopic()">
+        <button class="btn" style="margin:0; width:auto; padding: 0 12px;" onclick="updateTopic()">お題を設定</button>
+      </div>
+    </div>
+
+    <div id="messages"></div>
+
+    <div class="input-group">
+      <input type="text" id="name-input" placeholder="ニックネームを入力 (任意)">
+      <div class="input-row">
+        <input type="text" id="msg-input" placeholder="メッセージを入力..." onkeydown="if(event.key==='Enter') sendMessage()">
+        <button class="btn" id="send-btn" onclick="sendMessage()">送信</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="create-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0;">クラス作成認証</h3>
+    <p style="font-size:13px; color:#666;">管理者用パスワードを入力してください。</p>
+    <div class="password-wrapper">
+      <input type="password" id="admin-pass-input" inputmode="text" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter') verifyAndCreateClass()" autocomplete="off" spellcheck="false">
+      <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('admin-pass-input')">👁️</button>
+    </div>
+    <div id="modal-error" style="color:red; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
+    <button class="btn" onclick="verifyAndCreateClass()">認証する</button>
+    <button class="btn btn-secondary" onclick="closeCreateModal()">キャンセル</button>
+  </div>
+</div>
+
+<div id="pass-set-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0;">参加用パスワード設定</h3>
+    <p style="font-size:13px; color:#666;">参加者が入力するパスワードを<b>半角4〜16文字</b>で設定してください。</p>
+    <div class="password-wrapper">
+      <input type="password" id="class-pass-setting-input" inputmode="text" maxlength="16" placeholder="4〜16文字のパスワード" onkeydown="if(event.key==='Enter') submitClassPassword()" autocomplete="off" spellcheck="false">
+      <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('class-pass-setting-input')">👁️</button>
+    </div>
+    <div id="pass-set-error" style="color:#dc3545; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
+    <button class="btn" onclick="submitClassPassword()">クラスを作成開始</button>
+    <button class="btn btn-secondary" onclick="closePassSetModal()">キャンセル</button>
+  </div>
+</div>
+
+<div id="koneta-host-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0;">小ネタクラス ホスト認証</h3>
+    <p style="font-size:13px; color:#666;">
+      管理者用パスワードを入力すると、小ネタのクラスを「作成した人（ホスト）」として開き直せます。<br>
+      前回のお題と会話は自動で復元されます。
+    </p>
+    <div class="password-wrapper">
+      <input type="password" id="koneta-admin-pass" inputmode="text" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter') verifyKonetaHost()" autocomplete="off" spellcheck="false">
+      <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility('koneta-admin-pass')">👁️</button>
+    </div>
+    <div id="koneta-host-error" style="color:#dc3545; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
+    <button class="btn" onclick="verifyKonetaHost()">ホストとして開く</button>
+    <button class="btn btn-secondary" onclick="closeKonetaHostModal()">キャンセル</button>
+  </div>
+</div>
+
+<a href="home.html" class="back-link">戻る ⇒</a>
+
+<script>
+  const PEERJS_SOURCES = [
+    'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js',
+    'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js'
+  ];
+
+  const SIGNAL_SERVERS = [
+    { label: 'PeerJS公式クラウド', options: { host: '0.peerjs.com', port: 443, path: '/', key: 'peerjs', secure: true } }
+  ];
+
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' }
+  ];
+
+  const TURN_SERVERS = [];
+
+  let libReady = false;
+  let peer = null;
+  let connections = [];
+  let hostConn = null;
+  let isHost = false;
+  let isKoneta = false;
+  let classPassword = '';
+  let currentTopicText = '';
+  let currentClassId = '';
+  let messageLog = [];
+  let connecting = false;
+  let manualExit = false;
+  let absentNotified = false;
+  let hostIdRetry = 0;
+  let netRetry = 0;
+  let serverIndex = 0;
+  let connectionTimeout = null;
+  let rejoinTimer = null;
+  let testPeer = null;
+
+  const createPassword = 'takakimoko';
+  const SHOW_PASS_KEY = 'SHOW_PASSWORD';
+
+  const KONETA_CODE = '/koneta/';
+  const KONETA_PASSWORD = 'mokomokomokomoko';
+  const KONETA_PEER_ID = 'koneta-class-mokomoko-room';
+  const KONETA_CODE_ALIASES = ['/koneta/', 'koneta', '/koneta', 'koneta/', 'こねた', '小ネタ', '小ねた'];
+  const HISTORY_LIMIT = 300;
+  const OPEN_TIMEOUT_MS = 20000;
+  const MAX_NET_RETRY = 3;
+
+  function loadPeerJs(i, done, fail) {
+    if (i >= PEERJS_SOURCES.length) { fail(); return; }
+    const s = document.createElement('script');
+    s.src = PEERJS_SOURCES[i];
+    s.async = true;
+    s.onload = function () { done(PEERJS_SOURCES[i]); };
+    s.onerror = function () { loadPeerJs(i + 1, done, fail); };
+    document.head.appendChild(s);
+  }
+
+  function setLibStatus(text, kind) {
+    const el = document.getElementById('lib-status');
+    el.classList.remove('error-msg', 'ok-msg');
+    if (kind === 'error') el.classList.add('error-msg');
+    if (kind === 'ok') el.classList.add('ok-msg');
+    el.innerText = text;
+  }
+
+  function setEntryButtonsEnabled(enabled) {
+    ['btn-create', 'btn-join', 'btn-koneta-join', 'btn-koneta-host', 'btn-test'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    });
+  }
+
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+
+  function loadJson(key, fallback) {
+    const raw = lsGet(key);
+    if (!raw) return fallback;
+    try { const parsed = JSON.parse(raw); return parsed || fallback; } catch (e) { return fallback; }
+  }
+
+  function historyKey(id) { return 'classchat_history_' + id; }
+  function topicKey(id) { return 'classchat_topic_' + id; }
+
+  function getMyUid() {
+    let uid = lsGet('classchat_uid');
+    if (!uid) {
+      uid = 'u' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      lsSet('classchat_uid', uid);
+    }
+    return uid;
+  }
+
+  const MY_UID = getMyUid();
+
+  window.addEventListener('DOMContentLoaded', function () {
+    if (location.protocol === 'file:') {
+      document.getElementById('protocol-warning').style.display = 'block';
+    }
+    const savedName = lsGet('classchat_name');
+    if (savedName) document.getElementById('name-input').value = savedName;
+
+    setEntryButtonsEnabled(false);
+    setLibStatus('通信ライブラリを読み込み中...');
+    loadPeerJs(0, function (src) {
+      libReady = true;
+      setEntryButtonsEnabled(true);
+      setLibStatus('準備完了', 'ok');
+      console.log('[peerjs loaded]', src);
+    }, function () {
+      setLibStatus('通信ライブラリ(PeerJS)を読み込めませんでした。\nネットワーク／広告ブロッカー／校内フィルタの設定を確認してください。', 'error');
+    });
+  });
+
+  function buildPeerOptions(idx) {
+    const server = SIGNAL_SERVERS[Math.min(idx, SIGNAL_SERVERS.length - 1)];
+    const opt = Object.assign({}, server.options);
+    opt.debug = 1;
+    opt.config = { iceServers: ICE_SERVERS.concat(TURN_SERVERS) };
+    return opt;
+  }
+
+  function makePeer(id, idx) {
+    return id ? new Peer(id, buildPeerOptions(idx)) : new Peer(buildPeerOptions(idx));
+  }
+
+  function isNetworkLevelError(type) {
+    return ['network', 'server-error', 'socket-error', 'socket-closed', 'ssl-unavailable'].indexOf(type) !== -1;
+  }
+
+  function destroyPeer() {
+    if (peer) {
+      try { peer.removeAllListeners(); } catch (e) {}
+      try { peer.destroy(); } catch (e) {}
+    }
+    peer = null;
+  }
+
+  function makeMessageId() {
+    return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function toHalfWidth(str) {
+    if (!str) return '';
+    return str
+      .replace(/[！-～]/g, function (s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); })
+      .replace(/”/g, '"')
+      .replace(/’/g, "'")
+      .replace(/‘/g, "`")
+      .replace(/￥/g, '\\')
+      .replace(/\u3000/g, ' ');
+  }
+
+  function normalizeInput(value) { return toHalfWidth(value || '').trim(); }
+
+  function isKonetaCode(value) {
+    const v = normalizeInput(value).toLowerCase();
+    if (v === KONETA_PEER_ID) return true;
+    return KONETA_CODE_ALIASES.indexOf(v) !== -1;
+  }
+
+  function checkKonetaPass(value) {
+    const compact = normalizeInput(value).replace(/\s+/g, '');
+    if (compact === KONETA_PASSWORD) return true;
+    if (compact === KONETA_CODE) return true;
+    if (compact === KONETA_CODE + KONETA_PASSWORD) return true;
+    return false;
+  }
+
+  function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = (input.type === 'password') ? 'text' : 'password';
+  }
+
+  const senderColors = [
+    '#e1f5fe', '#fff3e0', '#f3e5f5', '#fbe9e7',
+    '#e8f5e9', '#fffde7', '#ffea8f', '#8fffff',
+    '#bc8fff', '#ccebea', '#7ceb57', '#f7d0d0',
+    '#d0d2f7', '#d0f7d2'
+  ];
+  const userColorMap = {};
+  let colorIndex = 0;
+
+  function getBackgroundColorForUser(name) {
+    if (!userColorMap[name]) {
+      userColorMap[name] = senderColors[colorIndex % senderColors.length];
+      colorIndex++;
+    }
+    return userColorMap[name];
+  }
+
+  function generateClassId() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    const nums = '0123456789';
+    let result = chars.charAt(Math.floor(Math.random() * chars.length));
+    const all = chars + nums;
+    for (let i = 0; i < 7; i++) {
+      result += all.charAt(Math.floor(Math.random() * all.length));
+    }
+    return result;
+  }
+
+  function setStatus(text, isError) {
+    const msgArea = document.getElementById('status-message');
+    if (isError) msgArea.classList.add('error-msg');
+    else msgArea.classList.remove('error-msg');
+    msgArea.innerText = text;
+  }
+
+  function setInputEnabled(enabled) {
+    document.getElementById('msg-input').disabled = !enabled;
+    document.getElementById('send-btn').disabled = !enabled;
+  }
+
+  function loadClassState(id) {
+    currentClassId = id;
+    messageLog = loadJson(historyKey(id), []);
+    currentTopicText = lsGet(topicKey(id)) || '';
+    document.getElementById('display-topic').innerText =
+      currentTopicText || '（お題はまだ設定されていません）';
+  }
+
+  function saveLog() {
+    if (!currentClassId) return;
+    if (messageLog.length > HISTORY_LIMIT) messageLog = messageLog.slice(-HISTORY_LIMIT);
+    lsSet(historyKey(currentClassId), JSON.stringify(messageLog));
+  }
+
+  function hasEntry(id) {
+    if (!id) return false;
+    return messageLog.some(function (e) { return e.id === id; });
+  }
+
+  function recordEntry(entry) { messageLog.push(entry); saveLog(); }
+
+  function renderLog(note) {
+    const messages = document.getElementById('messages');
+    messages.innerHTML = '';
+    messageLog.forEach(function (entry) { appendEntry(entry); });
+    if (messageLog.length > 0) addSystemMessage('ここまでが保存されている過去の会話です。');
+    if (note) addSystemMessage(note);
+  }
+
+  function openCreateModal() {
+    if (!requireLib()) return;
+    document.getElementById('admin-pass-input').value = '';
+    document.getElementById('modal-error').innerText = '';
+    document.getElementById('create-modal').style.display = 'flex';
+  }
+
+  function closeCreateModal() { document.getElementById('create-modal').style.display = 'none'; }
+
+  function openPassSetModal() {
+    document.getElementById('class-pass-setting-input').value = '';
+    document.getElementById('pass-set-error').innerText = '';
+    document.getElementById('pass-set-modal').style.display = 'flex';
+  }
+
+  function closePassSetModal() { document.getElementById('pass-set-modal').style.display = 'none'; }
+
+  function openKonetaHostModal() {
+    if (!requireLib()) return;
+    document.getElementById('koneta-admin-pass').value = '';
+    document.getElementById('koneta-host-error').innerText = '';
+    document.getElementById('koneta-host-modal').style.display = 'flex';
+  }
+
+  function closeKonetaHostModal() { document.getElementById('koneta-host-modal').style.display = 'none'; }
+
+  function requireLib() {
+    if (libReady && typeof Peer !== 'undefined') return true;
+    setStatus('通信ライブラリがまだ読み込めていません。ページを再読み込みしてください。', true);
+    return false;
+  }
+
+  function verifyAndCreateClass() {
+    const rawInput = document.getElementById('admin-pass-input').value.trim();
+    const input = toHalfWidth(rawInput);
+    const errorEl = document.getElementById('modal-error');
+
+    if (rawInput === SHOW_PASS_KEY) {
+      alert('現在のクラス作成パスワードは:\n【 ' + createPassword + ' 】です。');
+      document.getElementById('admin-pass-input').value = '';
+      return;
+    }
+
+    if (input === createPassword) {
+      closeCreateModal();
+      openPassSetModal();
+    } else {
+      errorEl.innerText = 'パスワードが違います。';
+    }
+  }
+
+  function submitClassPassword() {
+    const rawPass = document.getElementById('class-pass-setting-input').value.trim();
+    const pass = toHalfWidth(rawPass);
+    const errorEl = document.getElementById('pass-set-error');
+
+    if (pass.length < 4 || pass.length > 16) {
+      errorEl.innerText = 'パスワードは4文字以上16文字以内で入力してください。';
+      return;
+    }
+
+    isKoneta = false;
+    classPassword = pass;
+    closePassSetModal();
+    hostIdRetry = 0;
+    netRetry = 0;
+    serverIndex = 0;
+    initClassCreation(null);
+  }
+
+  function verifyKonetaHost() {
+    const raw = document.getElementById('koneta-admin-pass').value.trim();
+    const input = toHalfWidth(raw);
+    const errorEl = document.getElementById('koneta-host-error');
+
+    if (raw === SHOW_PASS_KEY) {
+      alert('現在のクラス作成パスワードは:\n【 ' + createPassword + ' 】です。');
+      document.getElementById('koneta-admin-pass').value = '';
+      return;
+    }
+
+    if (input !== createPassword) {
+      errorEl.innerText = 'パスワードが違います。';
+      return;
+    }
+
+    closeKonetaHostModal();
+    isKoneta = true;
+    hostIdRetry = 0;
+    netRetry = 0;
+    serverIndex = 0;
+    classPassword = KONETA_PASSWORD;
+    initClassCreation(KONETA_PEER_ID);
+  }
+
+  function joinKoneta() {
+    if (!requireLib()) return;
+    const errorEl = document.getElementById('koneta-error');
+    const codeValue = document.getElementById('koneta-code-input').value;
+    const passValue = document.getElementById('koneta-pass-input').value;
+
+    if (!isKonetaCode(codeValue)) { errorEl.innerText = '入室コードが違います。'; return; }
+    if (!checkKonetaPass(passValue)) { errorEl.innerText = 'パスワードが違います。'; return; }
+
+    errorEl.innerText = '';
+    isKoneta = true;
+    absentNotified = false;
+    netRetry = 0;
+    serverIndex = 0;
+    connectToClass(KONETA_PEER_ID, KONETA_PASSWORD);
+  }
+
+  function initClassCreation(fixedId) {
+    if (!requireLib()) return;
+    isHost = true;
+    manualExit = false;
+    setStatus('サーバーに接続中... [' + SIGNAL_SERVERS[serverIndex].label + ']', false);
+
+    destroyPeer();
+    clearTimeout(connectionTimeout);
+
+    const classId = fixedId || generateClassId();
+    connecting = true;
+    console.log('[initClassCreation] classId =', classId);
+    peer = makePeer(classId, serverIndex);
+
+    connectionTimeout = setTimeout(function () {
+      if (!connecting) return;
+      connecting = false;
+      destroyPeer();
+      if (netRetry < MAX_NET_RETRY) {
+        netRetry++;
+        setStatus('応答がありません。再試行します... (' + netRetry + '/' + MAX_NET_RETRY + ')', false);
+        setTimeout(function () { initClassCreation(fixedId); }, 2500);
+        return;
+      }
+      setStatus('署名サーバーに接続できませんでした。\n「接続テスト」で状況を確認し、時間をおいて再度お試しください。', true);
+    }, OPEN_TIMEOUT_MS);
+
+    peer.on('open', function (id) {
+      clearTimeout(connectionTimeout);
+      connecting = false;
+      hostIdRetry = 0;
+      netRetry = 0;
+      console.log('[peer.open] host id =', id);
+      setStatus('', false);
+      loadClassState(id);
+      openChatScreen(id);
+      document.getElementById('host-topic-section').style.display = 'block';
+      setInputEnabled(true);
+      renderLog(isKoneta
+        ? '小ネタのクラスをホストとして開きました。前回の内容を復元しました。'
+        : 'クラスを作成しました。参加者を待っています...');
+    });
+
+    peer.on('connection', function (conn) {
+      console.log('[peer.connection] incoming from', conn.peer);
+      setupHostConnection(conn);
+    });
+
+    peer.on('disconnected', function () {
+      console.warn('[peer.disconnected] 再接続を試みます。');
+      if (peer && !peer.destroyed && !manualExit) { try { peer.reconnect(); } catch (e) {} }
+    });
+
+    peer.on('error', function (err) {
+      clearTimeout(connectionTimeout);
+      connecting = false;
+      console.error('[peer.error]', err.type, err.message, err);
+
+      if (err.type === 'unavailable-id') {
+        if (isKoneta) {
+          hostIdRetry++;
+          if (hostIdRetry <= 15) {
+            setStatus('前回のセッションが残っています。IDを取り直しています... (' + hostIdRetry + '/15)', false);
+            setTimeout(function () { initClassCreation(KONETA_PEER_ID); }, 4000);
+          } else {
+            setStatus('小ネタクラスの部屋を開けませんでした。\n1〜2分ほど待ってから、もう一度お試しください。', true);
+          }
+          return;
+        }
+        setTimeout(function () { initClassCreation(null); }, 500);
+        return;
+      }
+
+      if (isNetworkLevelError(err.type) && netRetry < MAX_NET_RETRY && !manualExit) {
+        netRetry++;
+        setStatus('サーバーに接続できません。再試行します... (' + netRetry + '/' + MAX_NET_RETRY + ')', false);
+        setTimeout(function () { initClassCreation(fixedId); }, 2500);
+        return;
+      }
+
+      setStatus('作成失敗 [' + (err.type || 'unknown') + ']: ' + (err.message || 'サーバー接続エラー'), true);
+    });
+  }
+
+  function setupHostConnection(conn) {
+    conn.on('data', function (data) {
+      if (!data || !data.type) return;
+
+      if (data.type === 'auth') {
+        if (data.password === classPassword) {
+          connections = connections.filter(function (c) { return c.peer !== conn.peer; });
+          connections.push(conn);
+          conn.send({ type: 'auth_result', success: true });
+          conn.send({ type: 'history', topic: currentTopicText, messages: messageLog });
+          addSystemMessage('新しいメンバーが参加しました！');
+        } else {
+          conn.send({ type: 'auth_result', success: false, reason: 'パスワードが違います。' });
+          setTimeout(function () { try { conn.close(); } catch (e) {} }, 500);
+        }
+        return;
+      }
+
+      if (data.type === 'chat') {
+        if (hasEntry(data.id)) return;
+        const entry = {
+          id: data.id || makeMessageId(),
+          uid: data.uid || '',
+          name: data.name,
+          text: data.text,
+          time: data.time || Date.now()
+        };
+        recordEntry(entry);
+        appendEntry(entry);
+        broadcast({ type: 'chat', id: entry.id, uid: entry.uid, name: entry.name, text: entry.text, time: entry.time }, conn.peer);
+      }
+    });
+
+    conn.on('error', function (err) { console.error('[conn.error]', err); });
+
+    conn.on('close', function () {
+      if (connections.some(function (c) { return c.peer === conn.peer; })) {
+        addSystemMessage('メンバーが退出しました。');
+        connections = connections.filter(function (c) { return c.peer !== conn.peer; });
+      }
+    });
+  }
+
+  function broadcast(data, excludePeerId) {
+    connections.forEach(function (conn) {
+      if (conn.open && conn.peer !== excludePeerId) {
+        try { conn.send(data); } catch (e) { console.error('[broadcast]', e); }
+      }
+    });
+  }
+
+  function joinClass() {
+    if (!requireLib()) return;
+    const rawClassId = document.getElementById('join-id-input').value;
+    const rawPass = document.getElementById('join-pass-input').value;
+
+    const classId = normalizeInput(rawClassId).toLowerCase();
+    const inputPass = normalizeInput(rawPass);
+
+    if (!classId) { setStatus('クラスコードを入力してください', true); return; }
+
+    if (isKonetaCode(classId)) {
+      if (!checkKonetaPass(rawPass)) { setStatus('小ネタのクラスのパスワードが違います', true); return; }
+      isKoneta = true;
+      absentNotified = false;
+      netRetry = 0;
+      serverIndex = 0;
+      connectToClass(KONETA_PEER_ID, KONETA_PASSWORD);
+      return;
+    }
+
+    if (inputPass.length < 4) { setStatus('パスワードは4文字以上で入力してください', true); return; }
+
+    isKoneta = false;
+    netRetry = 0;
+    serverIndex = 0;
+    connectToClass(classId, inputPass);
+  }
+
+  function connectToClass(classId, inputPass) {
+    if (!requireLib()) return;
+    isHost = false;
+    manualExit = false;
+    setStatus('接続中... [' + SIGNAL_SERVERS[serverIndex].label + ']', false);
+
+    destroyPeer();
+    clearTimeout(connectionTimeout);
+
+    loadClassState(classId);
+    connecting = true;
+    peer = makePeer(null, serverIndex);
+
+    connectionTimeout = setTimeout(function () {
+      if (!connecting) return;
+      connecting = false;
+      if (isKoneta && !manualExit) { handleHostAbsent(); return; }
+      destroyPeer();
+      if (netRetry < MAX_NET_RETRY) {
+        netRetry++;
+        setStatus('応答がありません。再試行します... (' + netRetry + '/' + MAX_NET_RETRY + ')', false);
+        setTimeout(function () { connectToClass(classId, inputPass); }, 2500);
+        return;
+      }
+      setStatus('ホストへの接続がタイムアウトしました。\nクラスIDが正しいか、ホストの画面が開いたままかを確認してください。', true);
+    }, OPEN_TIMEOUT_MS);
+
+    peer.on('open', function () {
+      hostConn = peer.connect(classId, { reliable: true });
+      setupClientConnection(inputPass);
+    });
+
+    peer.on('disconnected', function () {
+      if (peer && !peer.destroyed && !manualExit) { try { peer.reconnect(); } catch (e) {} }
+    });
+
+    peer.on('error', function (err) {
+      clearTimeout(connectionTimeout);
+      connecting = false;
+      console.error('[peer.error]', err.type, err.message, err);
+
+      if (isKoneta && !manualExit &&
+          (err.type === 'peer-unavailable' || err.type === 'network' || err.type === 'unavailable-id')) {
+        handleHostAbsent();
+        return;
+      }
+
+      if (err.type === 'peer-unavailable') {
+        setStatus('そのクラスIDのホストが見つかりません。\nIDの綴りと、ホストがページを開いたままかを確認してください。', true);
+        return;
+      }
+
+      if (isNetworkLevelError(err.type) && netRetry < MAX_NET_RETRY && !manualExit) {
+        netRetry++;
+        setStatus('サーバーに接続できません。再試行します... (' + netRetry + '/' + MAX_NET_RETRY + ')', false);
+        setTimeout(function () { connectToClass(classId, inputPass); }, 2500);
+        return;
+      }
+
+      setStatus('接続失敗 [' + (err.type || 'unknown') + ']: ' + (err.message || 'クラスIDを確認してください'), true);
+    });
+  }
+
+  function setupClientConnection(inputPass) {
+    if (!hostConn) return;
+
+    hostConn.on('open', function () {
+      clearTimeout(connectionTimeout);
+      connecting = false;
+      netRetry = 0;
+      console.log('[hostConn.open] connected to', hostConn.peer);
+      hostConn.send({ type: 'auth', password: inputPass });
+    });
+
+    hostConn.on('error', function (err) {
+      console.error('[hostConn.error]', err);
+      if (isKoneta && !manualExit) { handleHostAbsent(); return; }
+      setStatus('ホストとの接続でエラーが発生しました。クラスIDを確認してください。', true);
+    });
+
+    hostConn.on('data', function (data) {
+      if (!data || !data.type) return;
+
+      if (data.type === 'auth_result') {
+        if (data.success) {
+          absentNotified = false;
+          clearTimeout(rejoinTimer);
+          openChatScreen(hostConn.peer);
+          setInputEnabled(true);
+          renderLog('クラスに接続しました！');
+        } else {
+          alert('認証エラー: ' + data.reason);
+          setStatus('パスワードが違います。', true);
+          manualExit = true;
+          try { hostConn.close(); } catch (e) {}
+          destroyPeer();
+        }
+        return;
+      }
+
+      if (data.type === 'history') {
+        messageLog = Array.isArray(data.messages) ? data.messages : [];
+        saveLog();
+        currentTopicText = data.topic || '';
+        document.getElementById('display-topic').innerText =
+          currentTopicText || '（お題はまだ設定されていません）';
+        if (currentTopicText) lsSet(topicKey(currentClassId), currentTopicText);
+        renderLog('ホストの記録に合わせて、続きから再開しました。');
+        return;
+      }
+
+      if (data.type === 'topic') {
+        currentTopicText = data.topic;
+        document.getElementById('display-topic').innerText = data.topic;
+        lsSet(topicKey(currentClassId), data.topic);
+        addSystemMessage('お題が「' + data.topic + '」に変更されました');
+        return;
+      }
+
+      if (data.type === 'chat') {
+        if (hasEntry(data.id)) return;
+        const entry = {
+          id: data.id || makeMessageId(),
+          uid: data.uid || '',
+          name: data.name,
+          text: data.text,
+          time: data.time || Date.now()
+        };
+        recordEntry(entry);
+        appendEntry(entry);
+      }
+    });
+
+    hostConn.on('close', function () {
+      hostConn = null;
+      if (document.getElementById('chat-screen').style.display !== 'block') return;
+
+      if (isKoneta && !manualExit) { handleHostAbsent(); return; }
+
+      addSystemMessage('⚠️ ホストとの接続が切断されました。これ以上メッセージは送信できません。');
+      setInputEnabled(false);
+    });
+  }
+
+  function handleHostAbsent() {
+    if (manualExit) return;
+
+    if (document.getElementById('chat-screen').style.display !== 'block') {
+      openChatScreen(KONETA_PEER_ID);
+      renderLog(null);
+    }
+
+    setInputEnabled(false);
+
+    if (!absentNotified) {
+      absentNotified = true;
+      addSystemMessage('⚠️ ホストが不在です。保存されている内容を表示しています。ホストが戻ると自動で再開します。');
+    }
+
+    scheduleRejoin();
+  }
+
+  function scheduleRejoin() {
+    if (manualExit || isHost) return;
+    clearTimeout(rejoinTimer);
+    rejoinTimer = setTimeout(function () {
+      if (manualExit) return;
+      console.log('[scheduleRejoin] retry');
+      netRetry = 0;
+      connectToClass(KONETA_PEER_ID, KONETA_PASSWORD);
+    }, 8000);
+  }
+
+  function updateTopic() {
+    if (!isHost) return;
+    const topicInput = document.getElementById('topic-input');
+    const newTopic = topicInput.value.trim();
+    if (!newTopic) return;
+
+    currentTopicText = newTopic;
+    document.getElementById('display-topic').innerText = newTopic;
+    lsSet(topicKey(currentClassId), newTopic);
+    addSystemMessage('お題を「' + newTopic + '」に設定しました');
+    broadcast({ type: 'topic', topic: newTopic }, null);
+    topicInput.value = '';
+  }
+
+  function sendMessage() {
+    const msgInput = document.getElementById('msg-input');
+    const nameInput = document.getElementById('name-input');
+
+    const text = msgInput.value.trim();
+    const name = nameInput.value.trim() || '名無し';
+    if (!text) return;
+
+    lsSet('classchat_name', name);
+
+    const entry = { id: makeMessageId(), uid: MY_UID, name: name, text: text, time: Date.now() };
+    const payload = { type: 'chat', id: entry.id, uid: entry.uid, name: entry.name, text: entry.text, time: entry.time };
+
+    if (isHost) {
+      recordEntry(entry);
+      appendEntry(entry);
+      broadcast(payload, null);
+      msgInput.value = '';
+      msgInput.focus();
+    } else if (hostConn && hostConn.open) {
+      hostConn.send(payload);
+      recordEntry(entry);
+      appendEntry(entry);
+      msgInput.value = '';
+      msgInput.focus();
+    } else {
+      alert('通信が確立されていないか、接続が切断されています。');
+    }
+  }
+
+  function openChatScreen(classId) {
+    document.getElementById('mode-screen').style.display = 'none';
+    document.getElementById('chat-screen').style.display = 'block';
+    document.getElementById('display-class-id').innerText = isKoneta ? KONETA_CODE : classId;
+    document.getElementById('display-class-label').innerText = isKoneta ? '小ネタのクラス / 入室コード:' : 'ID:';
+  }
+
+  function leaveClass() {
+    manualExit = true;
+    clearTimeout(rejoinTimer);
+    clearTimeout(connectionTimeout);
+    connecting = false;
+
+    if (hostConn) { try { hostConn.close(); } catch (e) {} }
+    hostConn = null;
+    connections = [];
+    destroyPeer();
+
+    document.getElementById('chat-screen').style.display = 'none';
+    document.getElementById('mode-screen').style.display = 'block';
+    document.getElementById('host-topic-section').style.display = 'none';
+    document.getElementById('messages').innerHTML = '';
+    document.getElementById('koneta-pass-input').value = '';
+    document.getElementById('koneta-code-input').value = '';
+    document.getElementById('join-pass-input').value = '';
+    setInputEnabled(true);
+
+    const wasKoneta = isKoneta;
+    isHost = false;
+    isKoneta = false;
+    absentNotified = false;
+
+    setStatus(wasKoneta
+      ? '小ネタのクラスから退出しました。入室コードとパスワードでまた続きから再開できます。'
+      : 'クラスから退出しました。', false);
+  }
+
+  function appendEntry(entry) {
+    const className = (entry.uid && entry.uid === MY_UID) ? 'my-msg' : 'other-msg';
+    appendMessage(entry.name, entry.text, className);
+  }
+
+  function appendMessage(name, text, className) {
+    const messages = document.getElementById('messages');
+
+    const containerDiv = document.createElement('div');
+    containerDiv.className = 'message-container ' + className;
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'sender-name';
+    nameDiv.textContent = name;
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message';
+    msgDiv.textContent = text;
+
+    if (className === 'other-msg') {
+      msgDiv.style.backgroundColor = getBackgroundColorForUser(name);
+    }
+
+    containerDiv.appendChild(nameDiv);
+    containerDiv.appendChild(msgDiv);
+    messages.appendChild(containerDiv);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function addSystemMessage(text) {
+    const messages = document.getElementById('messages');
+    const sysDiv = document.createElement('div');
+    sysDiv.style.textAlign = 'center';
+    sysDiv.style.color = '#888';
+    sysDiv.style.fontSize = '12px';
+    sysDiv.style.margin = '8px 0';
+    sysDiv.textContent = text;
+    messages.appendChild(sysDiv);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function setDiag(text, kind) {
+    const el = document.getElementById('diag-result');
+    el.classList.remove('error-msg', 'ok-msg');
+    if (kind === 'error') el.classList.add('error-msg');
+    if (kind === 'ok') el.classList.add('ok-msg');
+    el.innerText = text;
+  }
+
+  function testConnection() {
+    if (!libReady || typeof Peer === 'undefined') {
+      setDiag('NG: 通信ライブラリが読み込めていません。広告ブロッカー／校内フィルタでCDNが遮断されている可能性があります。', 'error');
+      return;
+    }
+
+    setDiag('テスト中...');
+    if (testPeer) { try { testPeer.destroy(); } catch (e) {} testPeer = null; }
+
+    let finished = false;
+    const timer = setTimeout(function () {
+      if (finished) return;
+      finished = true;
+      try { testPeer.destroy(); } catch (e) {}
+      setDiag('NG: 署名サーバー(' + SIGNAL_SERVERS[0].options.host + ')から応答がありません。\n・サーバー障害\n・ネットワークがWebSocketを遮断\nのどちらかです。https://status.peerjs.com/ で稼働状況を確認してください。', 'error');
+    }, 12000);
+
+    testPeer = makePeer(null, 0);
+
+    testPeer.on('open', function (id) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      setDiag('OK: 署名サーバーに接続できました。\n取得ID: ' + id + '\nここがOKならクラス作成は動くはずです。', 'ok');
+      setTimeout(function () { try { testPeer.destroy(); } catch (e) {} testPeer = null; }, 1000);
+    });
+
+    testPeer.on('error', function (err) {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      setDiag('NG [' + (err.type || 'unknown') + ']: ' + (err.message || '不明なエラー'), 'error');
+      try { testPeer.destroy(); } catch (e) {}
+      testPeer = null;
+    });
+  }
+
+  function copyClassId() {
+    const idText = document.getElementById('display-class-id').innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(idText).then(function () {
+        alert('クラスIDをコピーしました: ' + idText);
+      }).catch(function () { fallbackCopyText(idText); });
+    } else {
+      fallbackCopyText(idText);
+    }
+  }
+
+  function fallbackCopyText(text) {
+    const tempInput = document.createElement('textarea');
+    tempInput.value = text;
+    tempInput.style.position = 'fixed';
+    tempInput.style.opacity = '0';
+    document.body.appendChild(tempInput);
+    tempInput.focus();
+    tempInput.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(tempInput);
+    alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
+  }
+</script>
+</body>
+</html>
