@@ -448,10 +448,16 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+    // ==== Supabase 接続設定 ====
+    const SUPABASE_URL = "https://fdjkxnzxsprkjrmvudmc.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_Bxxgk4WwsJUQQO9QlQ50wg_OTSbEhju";
+    const BUCKET = "moko-media";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const PASS = "takakimoko";
-    const STORE_KEY = "takagi_moko_data_v2";
-    const OLD_KEY   = "takagi_moko_data";
+    const LOCAL_PREFS_KEY = "takagi_moko_local_prefs_v1"; // このブラウザだけの好み設定（投稿データ本体はSupabase側）
     const CATEGORIES = ["日常", "おでかけ", "ごはん", "あそび", "きねん日","もこ族","もこ(最近)","もこ(昔)","もこ(結構昔)","流行り","お知らせ","動画", "その他"];
 
     const MOKO_STAGES = ["もこ(最近)", "もこ(昔)", "もこ(結構昔)"];
@@ -459,34 +465,160 @@
     const MOKO_MONTHS_TO_VERYOLD = 13;
 
     let posts = [];
-    let categoryScores = {};
+    let localPrefs = { categoryScores: {}, likedIds: [], votedPolls: {} };
     let feedOrder = [];
     let isEditing = false;
     let currentView = "home";
     let selectedTextElement = null;
     let viewObserver = null;
-    let passReal = ""; 
+    let realtimeChannel = null;
+    let passReal = "";
 
-    const memoryStore = {};
-    const store = {
-        get(k) { try { return localStorage.getItem(k); } catch (e) { return memoryStore[k] || null; } },
-        set(k, v) {
-            try {
-                localStorage.setItem(k, v);
-                return true; // 保存に成功
-            } catch (e) {
-                memoryStore[k] = v;
-                return false; // 保存に失敗（容量オーバーなど）。この場合、画面を閉じると内容は消える
+    // ==== このブラウザだけのローカル設定（好みスコア・いいね・投票履歴）====
+    function loadLocalPrefs() {
+        try {
+            const raw = localStorage.getItem(LOCAL_PREFS_KEY);
+            if (raw) {
+                const obj = JSON.parse(raw);
+                localPrefs.categoryScores = obj.categoryScores || {};
+                localPrefs.likedIds = obj.likedIds || [];
+                localPrefs.votedPolls = obj.votedPolls || {};
             }
+        } catch (e) {}
+    }
+
+    function saveLocalPrefs() {
+        try {
+            localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify(localPrefs));
+        } catch (e) {
+            // このデータは小さいので通常失敗しないが、失敗してもアプリは壊さない
+        }
+    }
+
+    window.onload = async function () {
+        buildCategorySelect();
+        loadLocalPrefs();
+        try {
+            await loadPostsFromServer();
+            await applyCategoryAgingAndSync();
+            setupRealtime();
+            reshuffle();
+        } catch (err) {
+            console.error(err);
+            alert("データの読み込みに失敗しました。インターネット接続、またはSupabaseの設定をご確認ください。\n" + (err.message || err));
         }
     };
 
-    window.onload = function () {
-        buildCategorySelect();
-        loadData();
-        if (applyCategoryAging()) saveData();
-        reshuffle();
-    };
+    // ==== サーバーとのデータ形式の変換 ====
+    function rowToPost(row) {
+        return {
+            id: row.id,
+            type: row.type || "text",
+            src: row.src || null,
+            mediaWidth: row.media_width || "300px",
+            mediaHeight: row.media_height || "auto",
+            text: row.text_content || "",
+            textStyle: row.text_style || "",
+            isMuted: !!row.is_muted,
+            isBubble: !!row.is_bubble,
+            category: row.category || (row.type === "video" ? "動画" : "日常"),
+            likes: row.likes || 0,
+            isLiked: localPrefs.likedIds.indexOf(row.id) !== -1,
+            pollData: row.poll_data ? {
+                question: row.poll_data.question,
+                options: row.poll_data.options,
+                userVotedIndex: (localPrefs.votedPolls[row.id] !== undefined ? localPrefs.votedPolls[row.id] : null)
+            } : null,
+            createdAt: row.created_at ? new Date(row.created_at).getTime() : null
+        };
+    }
+
+    function postToRow(p) {
+        return {
+            id: p.id,
+            type: p.type,
+            src: p.src,
+            media_width: p.mediaWidth,
+            media_height: p.mediaHeight,
+            text_content: p.text,
+            text_style: p.textStyle,
+            is_muted: !!p.isMuted,
+            is_bubble: !!p.isBubble,
+            category: p.category,
+            likes: p.likes || 0,
+            poll_data: p.pollData ? { question: p.pollData.question, options: p.pollData.options } : null,
+            created_at: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString()
+        };
+    }
+
+    function normalizePost(item) {
+        return {
+            id: item.id || uid(),
+            type: item.type || "text",
+            src: item.src || null,
+            mediaWidth: item.mediaWidth || "300px",
+            mediaHeight: item.mediaHeight || "auto",
+            text: item.text || "",
+            textStyle: item.textStyle || "",
+            isMuted: !!item.isMuted,
+            isBubble: !!item.isBubble,
+            category: item.category || (item.type === "video" ? "動画" : "日常"),
+            likes: parseInt(item.likes) || 0,
+            pollData: item.pollData || null,
+            createdAt: item.createdAt || Date.now()
+        };
+    }
+
+    // ==== サーバーからの読み込み・リアルタイム同期 ====
+    async function loadPostsFromServer() {
+        const { data, error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
+        if (error) throw error;
+        posts = (data || []).map(rowToPost);
+    }
+
+    function setupRealtime() {
+        if (realtimeChannel) sb.removeChannel(realtimeChannel);
+        realtimeChannel = sb.channel("posts-changes")
+            .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, handleRealtimeChange)
+            .subscribe();
+    }
+
+    function handleRealtimeChange(payload) {
+        if (payload.eventType === "INSERT") {
+            if (!posts.find(p => p.id === payload.new.id)) {
+                posts.unshift(rowToPost(payload.new));
+                feedOrder.unshift(payload.new.id);
+            }
+        } else if (payload.eventType === "UPDATE") {
+            const idx = posts.findIndex(p => p.id === payload.new.id);
+            if (idx !== -1) posts[idx] = rowToPost(payload.new);
+        } else if (payload.eventType === "DELETE") {
+            posts = posts.filter(p => p.id !== payload.old.id);
+            feedOrder = feedOrder.filter(id => id !== payload.old.id);
+        }
+        // 今まさに文字を入力中の場合は、その場での再描画を避けて入力内容を守る
+        const active = document.activeElement;
+        const isTyping = active && active.classList && active.classList.contains("editable-text");
+        if (!isTyping) render();
+    }
+
+    async function applyCategoryAgingAndSync() {
+        const changed = [];
+        posts.forEach(p => {
+            if (!p.createdAt) return;
+            const nowIdx = MOKO_STAGES.indexOf(p.category);
+            if (nowIdx === -1) return;
+            const nextIdx = MOKO_STAGES.indexOf(mokoStageFor(p.createdAt));
+            if (nextIdx > nowIdx) {
+                p.category = MOKO_STAGES[nextIdx];
+                changed.push(p);
+            }
+        });
+        for (const p of changed) {
+            await sb.from("posts").update({ category: p.category }).eq("id", p.id);
+        }
+        return changed.length > 0;
+    }
 
     function monthsPassed(from, to) {
         const a = new Date(from);
@@ -504,42 +636,8 @@
         return "もこ(最近)";
     }
 
-    function applyCategoryAging() {
-        let changed = false;
-        posts.forEach(p => {
-            if (!p.createdAt) return;
-            const nowIdx = MOKO_STAGES.indexOf(p.category);
-            if (nowIdx === -1) return;
-            const nextIdx = MOKO_STAGES.indexOf(mokoStageFor(p.createdAt));
-            if (nextIdx > nowIdx) {
-                p.category = MOKO_STAGES[nextIdx];
-                changed = true;
-            }
-        });
-        return changed;
-    }
-
     function uid() {
         return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-    }
-
-    function normalizePost(item) {
-        return {
-            id: item.id || uid(),
-            type: item.type || "text",
-            src: item.src || null,
-            mediaWidth: item.mediaWidth || "300px",
-            mediaHeight: item.mediaHeight || "auto",
-            text: item.text || "",
-            textStyle: item.textStyle || "",
-            isMuted: !!item.isMuted,
-            isBubble: !!item.isBubble,
-            category: item.category || (item.type === "video" ? "動画" : "日常"),
-            likes: parseInt(item.likes) || 0,
-            isLiked: !!item.isLiked,
-            pollData: item.pollData || null,
-            createdAt: item.createdAt || null
-        };
     }
 
     function pad2(n) {
@@ -566,114 +664,48 @@
         return ts ? '<i class="fa fa-calendar-day"></i> ' + escapeHTML(formatDate(ts)) : "";
     }
 
-    function changeDate(input) {
+    async function changeDate(input) {
         const card = input.closest(".content-card");
         const p = getPost(card.dataset.id);
         if (!p) return;
 
+        let newCreatedAt;
         if (!input.value) {
-            p.createdAt = null;
+            newCreatedAt = null;
         } else {
             const parts = input.value.split("-");
             const base = p.createdAt ? new Date(p.createdAt) : new Date();
             const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]),
                                base.getHours(), base.getMinutes());
-            p.createdAt = d.getTime();
+            newCreatedAt = d.getTime();
         }
+        p.createdAt = newCreatedAt;
         card.querySelector(".date-badge").innerHTML = dateBadgeHTML(p.createdAt);
-        saveData();
-    }
-
-    function loadData() {
-        const raw = store.get(STORE_KEY);
-        if (raw) {
-            try {
-                const obj = JSON.parse(raw);
-                applyLoaded(obj);
-                return;
-            } catch (e) {}
-        }
-        const old = store.get(OLD_KEY);
-        if (old) {
-            try {
-                posts = JSON.parse(old).map(normalizePost);
-                categoryScores = {};
-                saveData();
-                return;
-            } catch (e) {}
-        }
-        posts = [normalizePost({
-            text: "ようこそ！パスワードを入力して編集を始めてください。",
-            category: "日常",
-            createdAt: Date.now()
-        })];
-    }
-
-    function applyLoaded(obj) {
-        if (Array.isArray(obj)) {
-            posts = obj.map(normalizePost);
-            categoryScores = {};
-        } else {
-            posts = (obj.posts || []).map(normalizePost);
-            categoryScores = obj.scores || {};
-        }
-    }
-
-    function saveData(showAlert) {
-        syncFromDOM();
-        const ok = store.set(STORE_KEY, JSON.stringify({
-            version: 2,
-            posts: posts,
-            scores: categoryScores
-        }));
-        if (!ok) {
-            alert(
-                "⚠️ 保存容量の上限を超えたため、最新の変更を保存できませんでした。\n" +
-                "写真や動画が多すぎる可能性があります。\n" +
-                "・いくつか投稿を削除してから再度保存する\n" +
-                "・写真は自動で圧縮されますが、動画は圧縮されないため特に注意してください\n" +
-                "この画面を閉じると、保存できなかった変更は失われます。"
-            );
-            return;
-        }
-        if (showAlert === true) alert("変更を保存しました！");
-    }
-
-    function syncFromDOM() {
-        document.querySelectorAll(".content-card").forEach(card => {
-            const p = getPost(card.dataset.id);
-            if (!p) return;
-            const textEl = card.querySelector(".editable-text");
-            if (textEl) {
-                p.text = textEl.innerHTML;
-                p.textStyle = textEl.style.cssText;
-            }
-            const box = card.querySelector(".resizable-box");
-            if (box) {
-                if (box.style.width) p.mediaWidth = box.style.width;
-                if (box.style.height) p.mediaHeight = box.style.height;
-            }
-        });
+        const { error } = await sb.from("posts").update({
+            created_at: newCreatedAt ? new Date(newCreatedAt).toISOString() : null
+        }).eq("id", p.id);
+        if (error) alert("日付の保存に失敗しました：" + error.message);
     }
 
     function getPost(id) {
         return posts.find(p => p.id === id);
     }
 
+    // ==== このブラウザだけの「好みスコア」（並び順の重み付け用。サーバーには送らない）====
     function bumpScore(category, amount) {
         if (!category) return;
-        const now = categoryScores[category] || 0;
-        categoryScores[category] = Math.min(20, now + amount);
+        const now = localPrefs.categoryScores[category] || 0;
+        localPrefs.categoryScores[category] = Math.min(20, now + amount);
     }
 
     function weightOf(category) {
-        return 1 + (categoryScores[category] || 0) * 0.6;
+        return 1 + (localPrefs.categoryScores[category] || 0) * 0.6;
     }
 
     function topCategory() {
         let best = null, bestScore = 0;
-        Object.keys(categoryScores).forEach(c => {
-            if (categoryScores[c] > bestScore) { best = c; bestScore = categoryScores[c]; }
+        Object.keys(localPrefs.categoryScores).forEach(c => {
+            if (localPrefs.categoryScores[c] > bestScore) { best = c; bestScore = localPrefs.categoryScores[c]; }
         });
         return bestScore >= 2 ? best : null;
     }
@@ -783,7 +815,7 @@
             mediaHTML +
             '<div class="text-wrapper" style="width:100%">' +
                 '<div class="editable-text-container' + (p.isBubble ? " speech-bubble" : "") + '">' +
-                    '<div class="editable-text" contenteditable="' + isEditing + '" onclick="selectText(this)" style="' + p.textStyle + '">' +
+                    '<div class="editable-text" contenteditable="' + isEditing + '" onclick="selectText(this)" onblur="commitTextEdit(this)" style="' + p.textStyle + '">' +
                         p.text +
                     "</div>" +
                 "</div>" +
@@ -797,7 +829,27 @@
                 "</button>" +
             "</div>";
 
+        observeResize(card, p);
         return card;
+    }
+
+    // 画像・動画の枠をドラッグでリサイズしたときに、サイズをサーバーへ反映する
+    function observeResize(card, post) {
+        const box = card.querySelector(".resizable-box");
+        if (!box || !window.ResizeObserver) return;
+        let timer = null;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(timer);
+            timer = setTimeout(async () => {
+                const w = box.style.width || (box.offsetWidth + "px");
+                const h = box.style.height || (box.offsetHeight + "px");
+                if (w === post.mediaWidth && h === post.mediaHeight) return;
+                post.mediaWidth = w;
+                post.mediaHeight = h;
+                await sb.from("posts").update({ media_width: w, media_height: h }).eq("id", post.id);
+            }, 800);
+        });
+        ro.observe(box);
     }
 
     function pollHTML(p) {
@@ -820,16 +872,21 @@
                 "</div>";
     }
 
-    function handleLike(btn) {
+    async function handleLike(btn) {
         const card = btn.closest(".content-card");
         const p = getPost(card.dataset.id);
         if (!p) return;
 
         p.isLiked = !p.isLiked;
         p.likes = Math.max(0, p.likes + (p.isLiked ? 1 : -1));
-        if (p.isLiked) bumpScore(p.category, 3);
 
-        saveData();
+        if (p.isLiked) {
+            if (localPrefs.likedIds.indexOf(p.id) === -1) localPrefs.likedIds.push(p.id);
+            bumpScore(p.category, 3);
+        } else {
+            localPrefs.likedIds = localPrefs.likedIds.filter(id => id !== p.id);
+        }
+        saveLocalPrefs();
 
         if (currentView === "fav" && !p.isLiked) {
             render();
@@ -840,45 +897,60 @@
             updateTabCounts();
             updateFeedNote();
         }
+
+        const { error } = await sb.from("posts").update({ likes: p.likes }).eq("id", p.id);
+        if (error) console.error("いいねの保存エラー:", error);
     }
 
-    function votePoll(btn, index) {
+    async function votePoll(btn, index) {
         const card = btn.closest(".content-card");
         const p = getPost(card.dataset.id);
         if (!p || !p.pollData) return;
 
-        if (p.pollData.userVotedIndex !== null && p.pollData.userVotedIndex !== undefined) {
-            alert("すでにこの投票に参加しています!（1人1票まで）");
+        if (localPrefs.votedPolls[p.id] !== undefined) {
+            alert("すでにこの端末からこの投票に参加しています！（1端末につき1票まで）");
             return;
         }
         p.pollData.options[index].votes += 1;
-        p.pollData.userVotedIndex = index;
+        localPrefs.votedPolls[p.id] = index;
+        saveLocalPrefs();
         bumpScore(p.category, 2);
-        saveData();
+        saveLocalPrefs();
+
+        const { error } = await sb.from("posts").update({
+            poll_data: { question: p.pollData.question, options: p.pollData.options }
+        }).eq("id", p.id);
+        if (error) {
+            alert("投票の送信に失敗しました：" + error.message);
+            return;
+        }
 
         card.querySelector(".poll-wrapper").innerHTML = pollHTML(p);
         updateFeedNote();
         alert("投票ありがとうございました！");
     }
 
-    function changeCategory(select) {
+    async function changeCategory(select) {
         const card = select.closest(".content-card");
         const p = getPost(card.dataset.id);
         if (!p) return;
-        p.category = select.value;
-        card.querySelector(".category-badge").innerHTML = '<i class="fa fa-tag"></i> ' + escapeHTML(p.category);
-        saveData();
+        const newCat = select.value;
+        p.category = newCat;
+        card.querySelector(".category-badge").innerHTML = '<i class="fa fa-tag"></i> ' + escapeHTML(newCat);
+        const { error } = await sb.from("posts").update({ category: newCat }).eq("id", p.id);
+        if (error) alert("カテゴリの保存に失敗しました：" + error.message);
     }
 
-    function toggleBubble(btn) {
+    async function toggleBubble(btn) {
         const card = btn.closest(".content-card");
         const p = getPost(card.dataset.id);
         p.isBubble = !p.isBubble;
         card.querySelector(".editable-text-container").classList.toggle("speech-bubble", p.isBubble);
-        saveData();
+        const { error } = await sb.from("posts").update({ is_bubble: p.isBubble }).eq("id", p.id);
+        if (error) alert("保存に失敗しました：" + error.message);
     }
 
-    function toggleMute(btn) {
+    async function toggleMute(btn) {
         const card = btn.closest(".content-card");
         const p = getPost(card.dataset.id);
         const video = card.querySelector("video");
@@ -886,20 +958,21 @@
         video.muted = !video.muted;
         p.isMuted = video.muted;
         alert(video.muted ? "動画をミュートにしました" : "動画のミュートを解除しました");
-        saveData();
+        const { error } = await sb.from("posts").update({ is_muted: p.isMuted }).eq("id", p.id);
+        if (error) console.error(error);
     }
 
-    function deleteCard(btn) {
+    async function deleteCard(btn) {
         if (!confirm("このカードを削除してもよろしいですか？")) return;
         const id = btn.closest(".content-card").dataset.id;
-        syncFromDOM();
+        const { error } = await sb.from("posts").delete().eq("id", id);
+        if (error) { alert("削除に失敗しました：" + error.message); return; }
         posts = posts.filter(p => p.id !== id);
         feedOrder = feedOrder.filter(x => x !== id);
-        saveData();
         render();
     }
 
-    function toggleCardPoll(btn) {
+    async function toggleCardPoll(btn) {
         const card = btn.closest(".content-card");
         const p = getPost(card.dataset.id);
 
@@ -907,7 +980,8 @@
             if (confirm("この投票を削除しますか？")) {
                 p.pollData = null;
                 card.querySelector(".poll-wrapper").innerHTML = "";
-                saveData();
+                const { error } = await sb.from("posts").update({ poll_data: null }).eq("id", p.id);
+                if (error) alert("削除に失敗しました：" + error.message);
             }
             return;
         }
@@ -915,7 +989,10 @@
         if (!poll) return;
         p.pollData = poll;
         card.querySelector(".poll-wrapper").innerHTML = pollHTML(p);
-        saveData();
+        const { error } = await sb.from("posts").update({
+            poll_data: { question: poll.question, options: poll.options }
+        }).eq("id", p.id);
+        if (error) alert("投票の保存に失敗しました：" + error.message);
     }
 
     function askPoll(defQ, defOpts) {
@@ -939,7 +1016,7 @@
         btn.innerText = open ? "閉じる" : "もっと見る";
         if (open) {
             const p = getPost(btn.closest(".content-card").dataset.id);
-            if (p) { bumpScore(p.category, 1); saveData(); updateFeedNote(); }
+            if (p) { bumpScore(p.category, 1); saveLocalPrefs(); updateFeedNote(); }
         }
     }
 
@@ -964,7 +1041,7 @@
                 const p = getPost(e.target.dataset.id);
                 if (p) { bumpScore(p.category, 0.3); changed = true; }
             });
-            if (changed) { saveData(); updateFeedNote(); }
+            if (changed) { saveLocalPrefs(); updateFeedNote(); }
         }, { threshold: 0.6 });
 
         document.querySelectorAll(".content-card").forEach(c => viewObserver.observe(c));
@@ -972,8 +1049,8 @@
 
     function resetScores() {
         if (!confirm("「よく見る種目」の記録をリセットしますか？")) return;
-        categoryScores = {};
-        saveData();
+        localPrefs.categoryScores = {};
+        saveLocalPrefs();
         updateFeedNote();
         alert("好みの記録をリセットしました。");
     }
@@ -988,28 +1065,35 @@
         return sel ? sel.value : "日常";
     }
 
-    function addPost(data) {
-        syncFromDOM();
+    async function addPost(data) {
         const p = normalizePost(data);
-        if (!p.createdAt) p.createdAt = Date.now();
-        posts.unshift(p);
-        feedOrder.unshift(p.id);
-        saveData();
-        render();
+        const row = postToRow(p);
+        const { error } = await sb.from("posts").insert(row);
+        if (error) {
+            alert("投稿の保存に失敗しました：" + error.message);
+            return null;
+        }
+        if (!posts.find(x => x.id === p.id)) {
+            p.isLiked = false;
+            posts.unshift(p);
+            feedOrder.unshift(p.id);
+            render();
+        }
+        return p;
     }
 
-    function addTextCard() {
-        addPost({
+    async function addTextCard() {
+        await addPost({
             type: "text",
             text: "新しいメッセージや日記を入力してください...",
             category: defaultCategory()
         });
     }
 
-    function addPollCardPrompt() {
+    async function addPollCardPrompt() {
         const poll = askPoll("今度のお出かけはどこに行きたい？", "動物園,公園,遊園地,おうち");
         if (!poll) return;
-        addPost({
+        await addPost({
             type: "text",
             text: "📊 アンケート投票：" + escapeHTML(poll.question),
             category: defaultCategory(),
@@ -1017,9 +1101,7 @@
         });
     }
 
-    // 写真を長辺maxSizeにリサイズし、JPEGで再圧縮してからBase64化する。
-    // localStorageは容量が数MBしかないため、スマホ写真をそのまま保存すると
-    // 数枚ですぐ上限を超えてしまう問題への対策。
+    // 写真を長辺maxSizeにリサイズし、JPEGで再圧縮してからBase64化する
     function resizeImageFile(file, maxSize, quality) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -1051,48 +1133,52 @@
         });
     }
 
-    document.getElementById("image-input").addEventListener("change", function (e) {
+    document.getElementById("image-input").addEventListener("change", async function (e) {
         const file = e.target.files[0];
         if (!file) return;
-        resizeImageFile(file, 1280, 0.75)
-            .then(dataUrl => {
-                addPost({ type: "image", src: dataUrl, text: "写真の説明を書いてください...", category: defaultCategory() });
-            })
-            .catch(err => {
-                alert("画像の処理に失敗しました：" + err.message);
-            })
-            .finally(() => {
-                e.target.value = "";
-            });
+        e.target.disabled = true;
+        try {
+            const dataUrl = await resizeImageFile(file, 1280, 0.75);
+            const blob = await (await fetch(dataUrl)).blob();
+            const id = uid();
+            const path = id + ".jpg";
+            const { error: upErr } = await sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg" });
+            if (upErr) throw upErr;
+            const { data: urlData } = sb.storage.from(BUCKET).getPublicUrl(path);
+            await addPost({ id: id, type: "image", src: urlData.publicUrl, text: "写真の説明を書いてください...", category: defaultCategory() });
+        } catch (err) {
+            alert("写真のアップロードに失敗しました：" + (err.message || err));
+        } finally {
+            e.target.value = "";
+            e.target.disabled = false;
+        }
     });
 
-    document.getElementById("video-input").addEventListener("change", function (e) {
+    document.getElementById("video-input").addEventListener("change", async function (e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        // 動画はブラウザ側で圧縮できないため、大きいファイルは保存に失敗しやすい。
-        // 事前に容量を伝えて、続けるかどうか選んでもらう。
         const sizeMB = file.size / 1024 / 1024;
-        if (sizeMB > 3) {
-            const proceed = confirm(
-                "この動画は約" + sizeMB.toFixed(1) + "MBあります。\n" +
-                "動画は写真と違って自動圧縮されないため、保存容量の上限（通常5MB程度）を超えて\n" +
-                "保存に失敗する可能性が高いです。\n\n" +
-                "それでもアップロードを続けますか？"
-            );
+        if (sizeMB > 50) {
+            const proceed = confirm("この動画は約" + sizeMB.toFixed(1) + "MBあります。アップロードに時間がかかります。続けますか？");
             if (!proceed) { e.target.value = ""; return; }
         }
 
-        const reader = new FileReader();
-        reader.onload = ev => {
-            addPost({ type: "video", src: ev.target.result, text: "動画の説明を書いてください...", category: "動画" });
+        e.target.disabled = true;
+        try {
+            const id = uid();
+            const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+            const path = id + "." + ext;
+            const { error: upErr } = await sb.storage.from(BUCKET).upload(path, file, { contentType: file.type || "video/mp4" });
+            if (upErr) throw upErr;
+            const { data: urlData } = sb.storage.from(BUCKET).getPublicUrl(path);
+            await addPost({ id: id, type: "video", src: urlData.publicUrl, text: "動画の説明を書いてください...", category: "動画" });
+        } catch (err) {
+            alert("動画のアップロードに失敗しました：" + (err.message || err));
+        } finally {
             e.target.value = "";
-        };
-        reader.onerror = () => {
-            alert("動画の読み込みに失敗しました。");
-            e.target.value = "";
-        };
-        reader.readAsDataURL(file);
+            e.target.disabled = false;
+        }
     });
 
     function mokoMask(n) {
@@ -1174,16 +1260,16 @@
         });
     })();
 
-    function endEditing() {
+    async function endEditing() {
         if (!isEditing) return;
-        saveData();
+        document.querySelectorAll(".editable-text").forEach(el => commitTextEdit(el));
         isEditing = false;
         document.body.classList.remove("editable");
         currentView = "home";
         document.getElementById("tab-home").classList.add("active");
         document.getElementById("tab-fav").classList.remove("active");
         reshuffle();
-        alert("変更を保存し、編集モードを終了しました。");
+        alert("編集モードを終了しました。");
     }
 
     function selectText(el) {
@@ -1191,30 +1277,44 @@
         selectedTextElement = el;
     }
 
-    function applyTextStyle() {
+    async function applyTextStyle() {
         if (!selectedTextElement) return;
         selectedTextElement.style.fontFamily = document.getElementById("font-family").value;
         selectedTextElement.style.fontSize = document.getElementById("font-size").value + "px";
         selectedTextElement.style.color = document.getElementById("font-color").value;
-        saveData();
         setTimeout(checkReadMoreVisibility, 50);
+        await commitTextEdit(selectedTextElement);
+    }
+
+    // 文字入力（contenteditable）の内容をサーバーに反映する
+    async function commitTextEdit(el) {
+        const card = el.closest(".content-card");
+        if (!card) return;
+        const p = getPost(card.dataset.id);
+        if (!p) return;
+        const newText = el.innerHTML;
+        const newStyle = el.style.cssText;
+        if (newText === p.text && newStyle === p.textStyle) return;
+        p.text = newText;
+        p.textStyle = newStyle;
+        const { error } = await sb.from("posts").update({ text_content: newText, text_style: newStyle }).eq("id", p.id);
+        if (error) console.error("テキスト保存エラー:", error);
+    }
+
+    // 互換用：以前の「💾保存」ボタンから呼ばれる。今は操作のたびに自動保存されるため、
+    // 入力中のテキストを確定させるだけの役割。
+    async function saveData(showAlert) {
+        document.querySelectorAll(".editable-text").forEach(el => commitTextEdit(el));
+        if (showAlert) alert("保存しました！（このアプリでは操作するたびに自動保存されています）");
     }
 
     function exportData() {
-        syncFromDOM();
-        // localStorageの保存が容量オーバーで失敗していても、現在の投稿データから直接書き出す。
-        // これにより「保存できないほど写真が多い」場合でも、JSONファイルとして手元に残せる。
-        const dataStr = JSON.stringify({
-            version: 2,
-            posts: posts,
-            scores: categoryScores
-        });
-        saveData(); // 保存も試みる（容量オーバー時はアラートが表示される）
+        const dataStr = JSON.stringify({ version: 3, posts: posts }, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "moko_record_data.json";
+        a.download = "moko_record_backup.json";
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -1223,15 +1323,22 @@
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = e => {
+        reader.onload = async e => {
             try {
-                applyLoaded(JSON.parse(e.target.result));
-                applyCategoryAging();
-                saveData();
+                const obj = JSON.parse(e.target.result);
+                const items = Array.isArray(obj) ? obj : (obj.posts || []);
+                if (!confirm(items.length + "件の投稿を読み込みます。今ある投稿に追加されます。よろしいですか？")) return;
+                for (const item of items) {
+                    const p = normalizePost(item);
+                    const row = postToRow(p);
+                    const { error } = await sb.from("posts").upsert(row);
+                    if (error) console.error(error);
+                }
+                await loadPostsFromServer();
                 reshuffle();
-                alert("データを正常に読み込みました！");
+                alert("データを読み込みました！");
             } catch (err) {
-                alert("ファイルの読み込みに失敗しました。");
+                alert("ファイルの読み込みに失敗しました：" + err.message);
             }
         };
         reader.readAsText(file);
