@@ -102,6 +102,21 @@
         }
         .shuffle-btn:hover { background: #eceff1; }
 
+        .sort-controls { display: flex; gap: 6px; }
+
+        .sort-btn {
+            background: #fff;
+            border: 1px solid #cfd8dc;
+            color: #546e7a;
+            padding: 7px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .sort-btn:hover { background: #eceff1; }
+        .sort-btn.active { background: #4caf50; color: #fff; border-color: #4caf50; }
+
         .content-card {
             background: white;
             padding: 20px;
@@ -427,6 +442,10 @@
 
     <div id="feed-bar">
         <span id="feed-note"></span>
+        <div class="sort-controls">
+            <button class="sort-btn active" id="sort-new" onclick="setSortMode('new')">🕒 新しい順</button>
+            <button class="sort-btn" id="sort-popular" onclick="setSortMode('popular')">⭐ よく見る種目順</button>
+        </div>
         <button class="shuffle-btn" onclick="refreshFromServer()"><i class="fa fa-arrows-rotate"></i> 更新</button>
     </div>
 
@@ -468,6 +487,7 @@
     let localPrefs = { categoryScores: {}, likedIds: [], votedPolls: {} };
     let isEditing = false;
     let currentView = "home";
+    let currentSort = "new"; // "new"：新しい順 / "popular"：よく見る種目順
     let selectedTextElement = null;
     let viewObserver = null;
     let realtimeChannel = null;
@@ -703,9 +723,29 @@
         return bestScore >= 2 ? best : null;
     }
 
-    // 投稿日時が新しいものから順に並べる（未設定の日付は一番下扱い）
+    // 現在の並べ替えモードに応じて投稿を並べる
     function sortedPosts() {
-        return posts.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        const list = posts.slice();
+        if (currentSort === "popular") {
+            // よく見る種目順：カテゴリの好みスコアが高い順（同点なら新しい順）
+            list.sort((a, b) => {
+                const scoreA = localPrefs.categoryScores[a.category] || 0;
+                const scoreB = localPrefs.categoryScores[b.category] || 0;
+                if (scoreB !== scoreA) return scoreB - scoreA;
+                return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+        } else {
+            // 新しい順（未設定の日付は一番下扱い）
+            list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        }
+        return list;
+    }
+
+    function setSortMode(mode) {
+        currentSort = mode;
+        document.getElementById("sort-new").classList.toggle("active", mode === "new");
+        document.getElementById("sort-popular").classList.toggle("active", mode === "popular");
+        render();
     }
 
     // 手動でサーバーから最新の状態を取得し直す（以前の「並べかえ」ボタンの役割を引き継ぐ）
@@ -763,7 +803,9 @@
             note.innerText = "いいね！した投稿だけを表示しています";
             return;
         }
-        note.innerText = "新しい投稿から順に並んでいます";
+        note.innerText = currentSort === "popular"
+            ? "よく見る種目から順に並んでいます"
+            : "新しい投稿から順に並んでいます";
     }
 
     function escapeHTML(str) {
