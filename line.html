@@ -1,6 +1,4 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
+<html lang="ja"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラスチャット</title>
@@ -222,16 +220,16 @@
       margin-top: 6px;
     }
   </style>
-</head>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script></head>
 <body>
 
 <div class="container">
   <div id="mode-screen">
     <h2>クラスチャット</h2>
-    <div id="protocol-warning" class="warn-msg" style="display:none;">
+    <div id="protocol-warning" class="warn-msg" style="display: block;">
       ⚠️ file:// で開いています。うまく接続できない場合は、簡易サーバー経由（http://localhost）で開いてください。
     </div>
-    <div id="lib-status"></div>
+    <div id="lib-status" class="ok-msg">準備完了</div>
     <button class="btn" id="btn-create" onclick="openCreateModal()">クラスを作成する</button>
     <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
     <div id="status-message"></div>
@@ -246,7 +244,7 @@
       <div class="section-title">小ネタのクラス（常設）</div>
       <div class="small-note">
         入室コード（8文字）とパスワードを入れると参加できます。<br>
-        途中で抜けても、同じ端末なら続きから再開できます。
+        データはサーバーに保存されるため、いつでも続きから再開できます。
       </div>
       <input type="text" id="koneta-code-input" placeholder="入室コード（8文字）" onkeydown="if(event.key==='Enter') joinKoneta()" autocomplete="off" spellcheck="false">
       <div class="password-wrapper">
@@ -345,7 +343,17 @@
 
 <a href="home.html" class="back-link">戻る ⇒</a>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
+  // ========== Supabase 初期化 ==========
+  const SUPABASE_URL = 'https://fdjkxnzxsprkjrmvudmc.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkamt4bnp4c3Bya2pybXZ1ZG1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwfQ.X1X2X3X4X5X6X7X8X9X0'; // 実際のキーに置き換えてください
+
+  const { createClient } = supabase;
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ========== PeerJS 設定 ==========
   const PEERJS_SOURCES = [
     'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js',
     'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
@@ -365,6 +373,7 @@
 
   const TURN_SERVERS = [];
 
+  // ========== グローバル変数 ==========
   let libReady = false;
   let peer = null;
   let connections = [];
@@ -384,6 +393,7 @@
   let connectionTimeout = null;
   let rejoinTimer = null;
   let testPeer = null;
+  let konetaSubscription = null;
 
   const createPassword = 'takakimoko';
   const SHOW_PASS_KEY = 'SHOW_PASSWORD';
@@ -495,9 +505,9 @@
     if (!str) return '';
     return str
       .replace(/[！-～]/g, function (s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); })
-      .replace(/”/g, '"')
-      .replace(/’/g, "'")
-      .replace(/‘/g, "`")
+      .replace(/"/g, '"')
+      .replace(/'/g, "'")
+      .replace(/'/g, "`")
       .replace(/￥/g, '\\')
       .replace(/\u3000/g, ' ');
   }
@@ -583,6 +593,118 @@
   }
 
   function recordEntry(entry) { messageLog.push(entry); saveLog(); }
+
+  // ========== Supabase 操作 ==========
+  async function loadKonetaFromDB() {
+    try {
+      // お題を取得
+      const { data: konetaData, error: topicError } = await supabaseClient
+        .from('koneta_class')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (topicError && topicError.code !== 'PGRST116') {
+        console.warn('[loadKonetaFromDB] topic error:', topicError);
+      }
+
+      if (konetaData) {
+        currentTopicText = konetaData.topic || '';
+        lsSet(topicKey('koneta'), currentTopicText);
+      }
+
+      // メッセージを取得
+      const { data: messagesData, error: msgError } = await supabaseClient
+        .from('koneta_messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(HISTORY_LIMIT);
+
+      if (msgError) {
+        console.warn('[loadKonetaFromDB] messages error:', msgError);
+      }
+
+      if (messagesData && Array.isArray(messagesData)) {
+        messageLog = messagesData.map(function (msg) {
+          return {
+            id: msg.id,
+            uid: msg.uid,
+            name: msg.name,
+            text: msg.text,
+            time: new Date(msg.created_at).getTime()
+          };
+        });
+        lsSet(historyKey('koneta'), JSON.stringify(messageLog));
+      }
+
+      console.log('[loadKonetaFromDB] loaded', messageLog.length, 'messages');
+    } catch (err) {
+      console.error('[loadKonetaFromDB] error:', err);
+    }
+  }
+
+  async function saveKonetaTopic(topic) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('koneta_class')
+        .upsert({ id: 1, topic: topic, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('[saveKonetaTopic] error:', error);
+      } else {
+        console.log('[saveKonetaTopic] saved');
+      }
+    } catch (err) {
+      console.error('[saveKonetaTopic] error:', err);
+    }
+  }
+
+  async function saveKonetaMessage(entry) {
+    try {
+      const { error } = await supabaseClient
+        .from('koneta_messages')
+        .insert({
+          id: entry.id,
+          uid: entry.uid,
+          name: entry.name,
+          text: entry.text,
+          created_at: new Date(entry.time).toISOString()
+        });
+
+      if (error) {
+        console.warn('[saveKonetaMessage] error:', error);
+      } else {
+        console.log('[saveKonetaMessage] saved', entry.id);
+      }
+    } catch (err) {
+      console.error('[saveKonetaMessage] error:', err);
+    }
+  }
+
+  function subscribeKonetaUpdates() {
+    if (konetaSubscription) {
+      try { konetaSubscription.unsubscribe(); } catch (e) {}
+    }
+
+    // メッセージの Realtime 購読
+    konetaSubscription = supabaseClient
+      .channel('koneta_messages_updates')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'koneta_messages' }, function (payload) {
+        const msg = payload.new;
+        if (!hasEntry(msg.id)) {
+          const entry = {
+            id: msg.id,
+            uid: msg.uid,
+            name: msg.name,
+            text: msg.text,
+            time: new Date(msg.created_at).getTime()
+          };
+          recordEntry(entry);
+          appendEntry(entry);
+        }
+      })
+      .subscribe();
+  }
 
   function renderLog(note) {
     const messages = document.getElementById('messages');
@@ -739,12 +861,21 @@
       console.log('[peer.open] host id =', id);
       setStatus('', false);
       loadClassState(id);
-      openChatScreen(id);
-      document.getElementById('host-topic-section').style.display = 'block';
-      setInputEnabled(true);
-      renderLog(isKoneta
-        ? '小ネタのクラスをホストとして開きました。前回の内容を復元しました。'
-        : 'クラスを作成しました。参加者を待っています...');
+
+      if (isKoneta) {
+        loadKonetaFromDB().then(function () {
+          openChatScreen(id);
+          document.getElementById('host-topic-section').style.display = 'block';
+          setInputEnabled(true);
+          renderLog('小ネタのクラスをホストとして開きました。前回の内容を復元しました。');
+          subscribeKonetaUpdates();
+        });
+      } else {
+        openChatScreen(id);
+        document.getElementById('host-topic-section').style.display = 'block';
+        setInputEnabled(true);
+        renderLog('クラスを作成しました。参加者を待っています...');
+      }
     });
 
     peer.on('connection', function (conn) {
@@ -818,6 +949,11 @@
         recordEntry(entry);
         appendEntry(entry);
         broadcast({ type: 'chat', id: entry.id, uid: entry.uid, name: entry.name, text: entry.text, time: entry.time }, conn.peer);
+
+        // 小ネタクラスなら DB に保存
+        if (isKoneta) {
+          saveKonetaMessage(entry);
+        }
       }
     });
 
@@ -877,6 +1013,11 @@
     clearTimeout(connectionTimeout);
 
     loadClassState(classId);
+
+    if (isKoneta) {
+      loadKonetaFromDB();
+    }
+
     connecting = true;
     peer = makePeer(null, serverIndex);
 
@@ -957,6 +1098,7 @@
           openChatScreen(hostConn.peer);
           setInputEnabled(true);
           renderLog('クラスに接続しました！');
+          if (isKoneta) subscribeKonetaUpdates();
         } else {
           alert('認証エラー: ' + data.reason);
           setStatus('パスワードが違います。', true);
@@ -1051,6 +1193,11 @@
     lsSet(topicKey(currentClassId), newTopic);
     addSystemMessage('お題を「' + newTopic + '」に設定しました');
     broadcast({ type: 'topic', topic: newTopic }, null);
+
+    if (isKoneta) {
+      saveKonetaTopic(newTopic);
+    }
+
     topicInput.value = '';
   }
 
@@ -1071,6 +1218,11 @@
       recordEntry(entry);
       appendEntry(entry);
       broadcast(payload, null);
+
+      if (isKoneta) {
+        saveKonetaMessage(entry);
+      }
+
       msgInput.value = '';
       msgInput.focus();
     } else if (hostConn && hostConn.open) {
@@ -1096,6 +1248,11 @@
     clearTimeout(rejoinTimer);
     clearTimeout(connectionTimeout);
     connecting = false;
+
+    if (konetaSubscription) {
+      try { konetaSubscription.unsubscribe(); } catch (e) {}
+      konetaSubscription = null;
+    }
 
     if (hostConn) { try { hostConn.close(); } catch (e) {} }
     hostConn = null;
@@ -1232,5 +1389,6 @@
     alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
   }
 </script>
-</body>
-</html>
+
+
+</body></html>
