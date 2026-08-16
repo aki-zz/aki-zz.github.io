@@ -476,7 +476,7 @@
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const PASS = "takakimoko";
-    const LOCAL_PREFS_KEY = "takagi_moko_local_prefs_v1"; // このブラウザだけの好み設定（投稿データ本体はSupabase側）
+    const LOCAL_PREFS_KEY = "takagi_moko_local_prefs_v1";
     const CATEGORIES = ["日常", "おでかけ", "ごはん", "あそび", "きねん日","もこ族","もこ(最近)","もこ(昔)","もこ(結構昔)","流行り","お知らせ","動画", "その他"];
 
     const MOKO_STAGES = ["もこ(最近)", "もこ(昔)", "もこ(結構昔)"];
@@ -487,13 +487,12 @@
     let localPrefs = { categoryScores: {}, likedIds: [], votedPolls: {} };
     let isEditing = false;
     let currentView = "home";
-    let currentSort = "new"; // "new"：新しい順 / "popular"：よく見る種目順
+    let currentSort = "new";
     let selectedTextElement = null;
     let viewObserver = null;
     let realtimeChannel = null;
     let passReal = "";
 
-    // ==== このブラウザだけのローカル設定（好みスコア・いいね・投票履歴）====
     function loadLocalPrefs() {
         try {
             const raw = localStorage.getItem(LOCAL_PREFS_KEY);
@@ -510,7 +509,6 @@
         try {
             localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify(localPrefs));
         } catch (e) {
-            // このデータは小さいので通常失敗しないが、失敗してもアプリは壊さない
         }
     }
 
@@ -528,7 +526,6 @@
         }
     };
 
-    // ==== サーバーとのデータ形式の変換 ====
     function rowToPost(row) {
         return {
             id: row.id,
@@ -613,7 +610,6 @@
         } else if (payload.eventType === "DELETE") {
             posts = posts.filter(p => p.id !== payload.old.id);
         }
-        // 今まさに文字を入力中の場合は、その場での再描画を避けて入力内容を守る
         const active = document.activeElement;
         const isTyping = active && active.classList && active.classList.contains("editable-text");
         if (!isTyping) render();
@@ -708,7 +704,6 @@
         return posts.find(p => p.id === id);
     }
 
-    // ==== このブラウザだけの「好みスコア」（並び順の重み付け用。サーバーには送らない）====
     function bumpScore(category, amount) {
         if (!category) return;
         const now = localPrefs.categoryScores[category] || 0;
@@ -723,11 +718,9 @@
         return bestScore >= 2 ? best : null;
     }
 
-    // 現在の並べ替えモードに応じて投稿を並べる
     function sortedPosts() {
         const list = posts.slice();
         if (currentSort === "popular") {
-            // よく見る種目順：カテゴリの好みスコアが高い順（同点なら新しい順）
             list.sort((a, b) => {
                 const scoreA = localPrefs.categoryScores[a.category] || 0;
                 const scoreB = localPrefs.categoryScores[b.category] || 0;
@@ -735,7 +728,6 @@
                 return (b.createdAt || 0) - (a.createdAt || 0);
             });
         } else {
-            // 新しい順（未設定の日付は一番下扱い）
             list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         }
         return list;
@@ -748,7 +740,6 @@
         render();
     }
 
-    // 手動でサーバーから最新の状態を取得し直す（以前の「並べかえ」ボタンの役割を引き継ぐ）
     async function refreshFromServer() {
         try {
             await loadPostsFromServer();
@@ -869,7 +860,6 @@
         return card;
     }
 
-    // 画像・動画の枠をドラッグでリサイズしたときに、サイズをサーバーへ反映する
     function observeResize(card, post) {
         const box = card.querySelector(".resizable-box");
         if (!box || !window.ResizeObserver) return;
@@ -1320,7 +1310,6 @@
         await commitTextEdit(selectedTextElement);
     }
 
-    // 文字入力（contenteditable）の内容をサーバーに反映する
     async function commitTextEdit(el) {
         const card = el.closest(".content-card");
         if (!card) return;
@@ -1335,8 +1324,6 @@
         if (error) console.error("テキスト保存エラー:", error);
     }
 
-    // 互換用：以前の「💾保存」ボタンから呼ばれる。今は操作のたびに自動保存されるため、
-    // 入力中のテキストを確定させるだけの役割。
     async function saveData(showAlert) {
         document.querySelectorAll(".editable-text").forEach(el => commitTextEdit(el));
         if (showAlert) alert("保存しました！（このアプリでは操作するたびに自動保存されています）");
