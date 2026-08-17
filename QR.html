@@ -8,7 +8,7 @@
 <body>
     <main>
         <style>
-            body {
+            html {
                 padding: 0;
                 margin: 0;
             }
@@ -17,12 +17,12 @@
                 padding-block-end: 100em;
                 text-align: center;
             }
-            main img {
+            img {
                 padding: 50px;
                 border-radius: 20px;
                 background-color: lightsteelblue;
             }
-            br {
+            br :not(#label-center){
                 -ms-high-contrast-adjust: initial;
                 -webkit-margin-top-collapse: separate;
                 -ms-progress-appearance: unset;
@@ -32,8 +32,33 @@
                 color: snow;
                 font-size: 20px;
                 font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+                text-align: center;
             }
-            
+            #pass p {
+                color: snow;
+                font-size: 21px;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+                text-align: center;
+            }
+            legend {
+                color: snow;
+                font-size: 21px;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+                text-align: center;
+            } 
+            fieldset {
+                 border: 2px solid snow;
+                 margin: auto 32px;
+            }
+            nav {
+                color: snow;
+                font-size: 21px;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+                text-align: center;
+            }
+            ol {
+                list-style-position: inside;
+            }
         </style>
         <br>
         <img src="qrtool.jpeg">
@@ -42,8 +67,17 @@
                 <p>髙木家のホームページ ホーム</p>
             </label>
             <br>
-            <p>髙木家のホームページを、</p>
+            <p>髙木家のホームページを、<br>作ってみました。ぜひ見てください</p>
         </div>
+        <br>
+        <br>
+        <br>
+        <div id="pass">
+                <nav>
+            <p><b><label for="pass">小ネタのクラスのパスワード：</label><br><ol><li>/koneta/</li><article></ol><p></p><ol start="2"></article><li>mokomokomokomoko</li></article></ol></b></p>
+            </nav>
+        </div>
+        <p style="text-align: center; color: #888; margin-top: 40px;">&copy; 髙木家 All Rights Reserved.</p>
     </main>
 </body>
 </html>
