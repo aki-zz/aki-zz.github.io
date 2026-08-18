@@ -1389,32 +1389,51 @@
     document.body.removeChild(tempInput);
     alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
   }
+  \///|//SQL///|//\
+  \///|////////|//\
+  \///----------//\
+  import { createClient } from '@supabase/supabase-client';
+
+const supabaseUrl = 'https://your-supabase-url.supabase.co';
+const supabaseKey = 'YOUR_SERVICE_ROLE_KEY'; // DDL実行には Service Role Key が必要です
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const schemaSql = `
+  CREATE TABLE IF NOT EXISTS koneta_class (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    topic TEXT DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS koneta_messages (
+    id TEXT PRIMARY KEY,
+    uid TEXT NOT NULL,
+    name TEXT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  );
+
+  ALTER TABLE koneta_class ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE koneta_messages ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "koneta_class_select_public" ON koneta_class FOR SELECT USING (true);
+  CREATE POLICY "koneta_class_update_public" ON koneta_class FOR UPDATE USING (true);
+
+  CREATE POLICY "koneta_messages_select_public" ON koneta_messages FOR SELECT USING (true);
+  CREATE POLICY "koneta_messages_insert_public" ON koneta_messages FOR INSERT WITH CHECK (true);
+`;
+
+async function executeSchema() {
+  const { data, error } = await supabase.rpc('exec_sql', { sql_query: schemaSql });
+  if (error) {
+    console.error('Error executing schema:', error);
+  } else {
+    console.log('Schema created successfully');
+  }
+}
+
+executeSchema();
 </script>
-  <!--
-  CREATE TABLE koneta_class (
-  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-  topic TEXT DEFAULT '',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE koneta_messages (
-  id TEXT PRIMARY KEY,
-  uid TEXT NOT NULL,
-  name TEXT NOT NULL,
-  text TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- RLS ポリシー（公開）
-ALTER TABLE koneta_class ENABLE ROW LEVEL SECURITY;
-ALTER TABLE koneta_messages ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "koneta_class_select_public" ON koneta_class FOR SELECT USING (true);
-CREATE POLICY "koneta_class_update_public" ON koneta_class FOR UPDATE USING (true);
-
-CREATE POLICY "koneta_messages_select_public" ON koneta_messages FOR SELECT USING (true);
-CREATE POLICY "koneta_messages_insert_public" ON koneta_messages FOR INSERT WITH CHECK (true);
-  -->
 </body>
 </html>
