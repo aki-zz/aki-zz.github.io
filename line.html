@@ -1,5 +1,4 @@
-<html lang="ja">
-  <head>
+<html lang="ja"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラスチャット</title>
@@ -232,12 +231,12 @@
       margin-top: 6px;
     }
   </style>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script></head>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script><script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script></head>
 <body>
 
 <div class="container">
   <div id="mode-screen">
-    <h2>クラスチャット</h2>
+    <h2>小ネタの募集</h2>
     <div id="protocol-warning" class="warn-msg" style="display: block;">
       ⚠️ file:// で開いています。うまく接続できない場合は、簡易サーバー経由（http://localhost）で開いてください。
     </div>
@@ -283,6 +282,12 @@
       <span id="display-class-id"></span>
       <button class="copy-btn" onclick="copyClassId()">コピー</button>
       <button class="copy-btn exit-btn" onclick="leaveClass()">退出</button>
+    </div>
+
+    <div class="class-info" style="background:#e3f2fd;">
+      <span>あなたのID:</span>
+      <span id="display-my-id">ufnrxs8l6msr11gwi</span>
+      <button class="copy-btn" onclick="copyMyId()">コピー</button>
     </div>
 
     <div class="topic-card">
@@ -355,6 +360,17 @@
     <div id="koneta-host-error" style="color:#dc3545; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
     <button class="btn" onclick="verifyKonetaHost()">ホストとして開く</button>
     <button class="btn btn-secondary" onclick="closeKonetaHostModal()">キャンセル</button>
+  </div>
+</div>
+
+<div id="name-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 style="margin-top:0;">ニックネームを入力してください</h3>
+    <p style="font-size:13px; color:#666;">チャットで表示される名前です。あとから画面下のニックネーム欄でいつでも変更できます。</p>
+    <input type="text" id="name-modal-input" placeholder="ニックネームを入力" maxlength="20" onkeydown="if(event.key==='Enter') submitNameModal()" autocomplete="off" spellcheck="false">
+    <div id="name-modal-error" style="color:#dc3545; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
+    <button class="btn" onclick="submitNameModal()">決定</button>
+    <button class="btn btn-secondary" onclick="skipNameModal()">あとで入力する</button>
   </div>
 </div>
 
@@ -482,8 +498,15 @@
     if (location.protocol === 'file:') {
       document.getElementById('protocol-warning').style.display = 'block';
     }
+    const myIdEl = document.getElementById('display-my-id');
+    if (myIdEl) myIdEl.innerText = MY_UID;
+
     const savedName = lsGet('classchat_name');
-    if (savedName) document.getElementById('name-input').value = savedName;
+    if (savedName) {
+      document.getElementById('name-input').value = savedName;
+    } else {
+      openNameModalIfNeeded();
+    }
 
     setEntryButtonsEnabled(false);
     setLibStatus('通信ライブラリを読み込み中...');
@@ -763,6 +786,30 @@
   }
 
   function closeKonetaHostModal() { document.getElementById('koneta-host-modal').style.display = 'none'; }
+
+  function openNameModalIfNeeded() {
+    document.getElementById('name-modal-input').value = '';
+    document.getElementById('name-modal-error').innerText = '';
+    document.getElementById('name-modal').style.display = 'flex';
+  }
+
+  function closeNameModal() { document.getElementById('name-modal').style.display = 'none'; }
+
+  function submitNameModal() {
+    const raw = document.getElementById('name-modal-input').value.trim();
+    const errorEl = document.getElementById('name-modal-error');
+    if (!raw) {
+      errorEl.innerText = 'ニックネームを入力してください。';
+      return;
+    }
+    lsSet('classchat_name', raw);
+    document.getElementById('name-input').value = raw;
+    closeNameModal();
+  }
+
+  function skipNameModal() {
+    closeNameModal();
+  }
 
   function requireLib() {
     if (libReady && typeof Peer !== 'undefined') return true;
@@ -1431,6 +1478,17 @@
     }
   }
 
+  function copyMyId() {
+    const idText = document.getElementById('display-my-id').innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(idText).then(function () {
+        alert('あなたのIDをコピーしました: ' + idText);
+      }).catch(function () { fallbackCopyText(idText); });
+    } else {
+      fallbackCopyText(idText);
+    }
+  }
+
   function fallbackCopyText(text) {
     const tempInput = document.createElement('textarea');
     tempInput.value = text;
@@ -1445,5 +1503,6 @@
     alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
   }
 </script>
-</body>
-</html>
+
+
+</body></html>
