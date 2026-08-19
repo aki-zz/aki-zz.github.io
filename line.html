@@ -15,14 +15,6 @@
       margin: 0;
       color: #333;
     }
-    .container {
-      background: #fff;
-      width: 100%;
-      max-width: 450px;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
     h2 { margin-top: 0; text-align: center; color: #333; }
     .btn {
       width: 100%;
@@ -115,6 +107,25 @@
       border-radius: 6px;
       border: 1px dashed #ccc;
     }
+    #host-participant-section {
+      margin-bottom: 12px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px dashed #ccc;
+      display: none;
+    }
+    .participant-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+    }
+    .participant-item:last-child { border-bottom: none; }
+    .participant-name { font-weight: bold; color: #333; }
+    .participant-id { color: #999; font-size: 11px; word-break: break-all; margin-left: 8px; }
     #messages {
       height: 320px;
       border: 1px solid #ddd;
@@ -285,6 +296,11 @@
       </div>
     </div>
 
+    <div id="host-participant-section">
+      <div class="section-title" style="text-align:left; margin-bottom:6px;">接続中のメンバー</div>
+      <div id="participant-list"></div>
+    </div>
+
     <div id="messages"></div>
 
     <div class="input-group">
@@ -385,6 +401,7 @@
   let currentTopicText = '';
   let currentClassId = '';
   let messageLog = [];
+  let participants = {};
   let connecting = false;
   let manualExit = false;
   let absentNotified = false;
@@ -454,6 +471,12 @@
   }
 
   const MY_UID = getMyUid();
+
+  function getDeviceDisplayName() {
+    const input = document.getElementById('name-input');
+    const value = input ? input.value.trim() : '';
+    return value || '名無し';
+  }
 
   window.addEventListener('DOMContentLoaded', function () {
     if (location.protocol === 'file:') {
@@ -863,19 +886,25 @@
       setStatus('', false);
       loadClassState(id);
 
+      participants = {};
+
       if (isKoneta) {
         loadKonetaFromDB().then(function () {
           openChatScreen(id);
           document.getElementById('host-topic-section').style.display = 'block';
+          document.getElementById('host-participant-section').style.display = 'block';
           setInputEnabled(true);
           renderLog('小ネタのクラスをホストとして開きました。前回の内容を復元しました。');
+          renderParticipantList();
           subscribeKonetaUpdates();
         });
       } else {
         openChatScreen(id);
         document.getElementById('host-topic-section').style.display = 'block';
+        document.getElementById('host-participant-section').style.display = 'block';
         setInputEnabled(true);
         renderLog('クラスを作成しました。参加者を待っています...');
+        renderParticipantList();
       }
     });
 
@@ -928,9 +957,11 @@
         if (data.password === classPassword) {
           connections = connections.filter(function (c) { return c.peer !== conn.peer; });
           connections.push(conn);
+          participants[conn.peer] = { uid: data.uid || conn.peer, name: data.name || '名無し' };
           conn.send({ type: 'auth_result', success: true });
           conn.send({ type: 'history', topic: currentTopicText, messages: messageLog });
-          addSystemMessage('新しいメンバーが参加しました！');
+          addSystemMessage(participants[conn.peer].name + ' さんが参加しました！');
+          renderParticipantList();
         } else {
           conn.send({ type: 'auth_result', success: false, reason: 'パスワードが違います。' });
           setTimeout(function () { try { conn.close(); } catch (e) {} }, 500);
@@ -951,7 +982,6 @@
         appendEntry(entry);
         broadcast({ type: 'chat', id: entry.id, uid: entry.uid, name: entry.name, text: entry.text, time: entry.time }, conn.peer);
 
-        // 小ネタクラスなら DB に保存
         if (isKoneta) {
           saveKonetaMessage(entry);
         }
@@ -962,9 +992,12 @@
 
     conn.on('close', function () {
       if (connections.some(function (c) { return c.peer === conn.peer; })) {
-        addSystemMessage('メンバーが退出しました。');
+        const leftName = participants[conn.peer] ? participants[conn.peer].name : 'メンバー';
+        addSystemMessage(leftName + ' さんが退出しました。');
         connections = connections.filter(function (c) { return c.peer !== conn.peer; });
       }
+      delete participants[conn.peer];
+      renderParticipantList();
     });
   }
 
@@ -974,6 +1007,26 @@
         try { conn.send(data); } catch (e) { console.error('[broadcast]', e); }
       }
     });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  function renderParticipantList() {
+    const listEl = document.getElementById('participant-list');
+    if (!listEl) return;
+    const keys = Object.keys(participants);
+    if (keys.length === 0) {
+      listEl.innerHTML = '<div style="color:#999;">まだ誰も参加していません</div>';
+      return;
+    }
+    listEl.innerHTML = keys.map(function (peerId) {
+      const p = participants[peerId];
+      return '<div class="participant-item"><span class="participant-name">' + escapeHtml(p.name) + '</span><span class="participant-id">ID: ' + escapeHtml(p.uid) + '</span></div>';
+    }).join('');
   }
 
   function joinClass() {
@@ -1080,7 +1133,7 @@
       connecting = false;
       netRetry = 0;
       console.log('[hostConn.open] connected to', hostConn.peer);
-      hostConn.send({ type: 'auth', password: inputPass });
+      hostConn.send({ type: 'auth', password: inputPass, uid: MY_UID, name: getDeviceDisplayName() });
     });
 
     hostConn.on('error', function (err) {
@@ -1263,6 +1316,8 @@
     document.getElementById('chat-screen').style.display = 'none';
     document.getElementById('mode-screen').style.display = 'block';
     document.getElementById('host-topic-section').style.display = 'none';
+    document.getElementById('host-participant-section').style.display = 'none';
+    participants = {};
     document.getElementById('messages').innerHTML = '';
     document.getElementById('koneta-pass-input').value = '';
     document.getElementById('koneta-code-input').value = '';
@@ -1389,51 +1444,6 @@
     document.body.removeChild(tempInput);
     alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
   }
-  \///|//SQL//|//\
-  \///|///////|//\
-  \///---------//\
-  import { createClient } from '@supabase/supabase-client';
-
-const supabaseUrl = 'https://your-supabase-url.supabase.co';
-const supabaseKey = 'YOUR_SERVICE_ROLE_KEY'; // DDL実行には Service Role Key が必要です
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const schemaSql = `
-  CREATE TABLE IF NOT EXISTS koneta_class (
-    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    topic TEXT DEFAULT '',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS koneta_messages (
-    id TEXT PRIMARY KEY,
-    uid TEXT NOT NULL,
-    name TEXT NOT NULL,
-    text TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-  );
-
-  ALTER TABLE koneta_class ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE koneta_messages ENABLE ROW LEVEL SECURITY;
-
-  CREATE POLICY "koneta_class_select_public" ON koneta_class FOR SELECT USING (true);
-  CREATE POLICY "koneta_class_update_public" ON koneta_class FOR UPDATE USING (true);
-
-  CREATE POLICY "koneta_messages_select_public" ON koneta_messages FOR SELECT USING (true);
-  CREATE POLICY "koneta_messages_insert_public" ON koneta_messages FOR INSERT WITH CHECK (true);
-`;
-
-async function executeSchema() {
-  const { data, error } = await supabase.rpc('exec_sql', { sql_query: schemaSql });
-  if (error) {
-    console.error('Error executing schema:', error);
-  } else {
-    console.log('Schema created successfully');
-  }
-}
-
-executeSchema();
 </script>
 </body>
 </html>
