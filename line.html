@@ -1,6 +1,5 @@
-<!DOCTYPE html>
 <html lang="ja">
-<head>
+  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>クラスチャット</title>
@@ -233,12 +232,18 @@
       margin-top: 6px;
     }
   </style>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script><script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script></head>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" async=""></script></head>
 <body>
 
 <div class="container">
   <div id="mode-screen">
     <h2>小ネタの募集</h2>
+    <div id="profile-bar" class="class-info">
+      <span>あなた: <b id="profile-name-display">名無し</b></span>
+      <span style="font-size:11px; color:#666;">(ID: <span id="profile-id-display"></span>)</span>
+      <button class="copy-btn" onclick="copyMyId()">IDコピー</button>
+      <button class="copy-btn" onclick="openNameModal()">名前を変更</button>
+    </div>
     <div id="protocol-warning" class="warn-msg" style="display: block;">
       ⚠️ file:// で開いています。うまく接続できない場合は、簡易サーバー経由（http://localhost）で開いてください。
     </div>
@@ -286,12 +291,6 @@
       <button class="copy-btn exit-btn" onclick="leaveClass()">退出</button>
     </div>
 
-    <div class="class-info" style="background:#e3f2fd;">
-      <span>あなたのID:</span>
-      <span id="display-my-id">ufnrxs8l6msr11gwi</span>
-      <button class="copy-btn" onclick="copyMyId()">コピー</button>
-    </div>
-
     <div class="topic-card">
       お題: <span id="display-topic">（お題はまだ設定されていません）</span>
     </div>
@@ -311,7 +310,8 @@
     <div id="messages"></div>
 
     <div class="input-group">
-      <input type="text" id="name-input" placeholder="ニックネームを入力 (任意)">
+      <input type="text" id="name-input" placeholder="ニックネームを入力 (任意)" onchange="syncNameFromInput()">
+      <div class="small-note" style="margin:0 0 4px; text-align:right;">あなたのID: <span id="chat-id-display"></span></div>
       <div class="input-row">
         <input type="text" id="msg-input" placeholder="メッセージを入力..." onkeydown="if(event.key==='Enter') sendMessage()">
         <button class="btn" id="send-btn" onclick="sendMessage()">送信</button>
@@ -365,14 +365,19 @@
   </div>
 </div>
 
-<div id="name-modal" class="modal-overlay">
+<div id="name-setup-modal" class="modal-overlay">
   <div class="modal-content">
-    <h3 style="margin-top:0;">ニックネームを入力してください</h3>
-    <p style="font-size:13px; color:#666;">チャットで表示される名前です。あとから画面下のニックネーム欄でいつでも変更できます。</p>
-    <input type="text" id="name-modal-input" placeholder="ニックネームを入力" maxlength="20" onkeydown="if(event.key==='Enter') submitNameModal()" autocomplete="off" spellcheck="false">
-    <div id="name-modal-error" style="color:#dc3545; font-size:13px; margin-bottom:8px; min-height:18px;"></div>
-    <button class="btn" onclick="submitNameModal()">決定</button>
-    <button class="btn btn-secondary" onclick="skipNameModal()">あとで入力する</button>
+    <h3 style="margin-top:0;">ようこそ！</h3>
+    <p style="font-size:13px; color:#666;">
+      チャットで表示する名前を入力してください。<br>
+      この名前とIDは、小ネタのクラスのホストにも表示されます。
+    </p>
+    <input type="text" id="first-name-input" placeholder="ニックネームを入力" maxlength="20" onkeydown="if(event.key==='Enter') submitFirstName()" autocomplete="off" spellcheck="false">
+    <div class="small-note" style="text-align:center; margin-top:8px;">
+      あなたのID: <span id="first-id-display" style="font-weight:bold; color:#333;"></span>
+    </div>
+    <div id="first-name-error" style="color:#dc3545; font-size:13px; margin: 8px 0; min-height:18px; text-align:center;"></div>
+    <button class="btn" onclick="submitFirstName()">はじめる</button>
   </div>
 </div>
 
@@ -382,9 +387,11 @@
 
 <script>
   const SUPABASE_URL = 'https://fdjkxnzxsprkjrmvudmc.supabase.co';
-  const SUPABASE_ANON_KEY = '1234567890poiuytrewqasdfghjklmnbvcxzQWERTYUIOPLJHGFDSAZXCVBNM12345678990qwertyuioplkjhgfdsazxcvbnmQWERTYUIOPLKJHGFDSAZXCVBNM!-^@[]{}()&%$#!+.';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkamt4bnp4c3Bya2pybXZ1ZG1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwfQ.X1X2X3X4X5X6X7X8X9X0';
+
   const { createClient } = supabase;
   const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   const PEERJS_SOURCES = [
     'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js',
     'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
@@ -403,6 +410,7 @@
   ];
 
   const TURN_SERVERS = [];
+
   let libReady = false;
   let peer = null;
   let connections = [];
@@ -490,18 +498,73 @@
     return value || '名無し';
   }
 
+  function updateProfileDisplay() {
+    const nameEl = document.getElementById('profile-name-display');
+    const idEl = document.getElementById('profile-id-display');
+    const chatIdEl = document.getElementById('chat-id-display');
+    const displayName = lsGet('classchat_name') || '名無し';
+    if (nameEl) nameEl.innerText = displayName;
+    if (idEl) idEl.innerText = MY_UID;
+    if (chatIdEl) chatIdEl.innerText = MY_UID;
+  }
+
+  function openNameModal() {
+    document.getElementById('first-name-input').value = lsGet('classchat_name') || '';
+    document.getElementById('first-id-display').innerText = MY_UID;
+    document.getElementById('first-name-error').innerText = '';
+    document.getElementById('name-setup-modal').style.display = 'flex';
+  }
+
+  function closeNameModal() {
+    document.getElementById('name-setup-modal').style.display = 'none';
+  }
+
+  function submitFirstName() {
+    const raw = document.getElementById('first-name-input').value.trim();
+    const errorEl = document.getElementById('first-name-error');
+
+    if (raw.length > 20) {
+      errorEl.innerText = '名前は20文字以内で入力してください。';
+      return;
+    }
+
+    const name = raw || '名無し';
+    lsSet('classchat_name', name);
+    const nameInput = document.getElementById('name-input');
+    if (nameInput) nameInput.value = name;
+    updateProfileDisplay();
+    closeNameModal();
+  }
+
+  function syncNameFromInput() {
+    const nameInput = document.getElementById('name-input');
+    const name = nameInput.value.trim() || '名無し';
+    lsSet('classchat_name', name);
+    updateProfileDisplay();
+  }
+
+  function copyMyId() {
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(MY_UID).then(function () {
+        alert('あなたのIDをコピーしました: ' + MY_UID);
+      }).catch(function () { fallbackCopyText(MY_UID); });
+    } else {
+      fallbackCopyText(MY_UID);
+    }
+  }
+
   window.addEventListener('DOMContentLoaded', function () {
     if (location.protocol === 'file:') {
       document.getElementById('protocol-warning').style.display = 'block';
     }
-    const myIdEl = document.getElementById('display-my-id');
-    if (myIdEl) myIdEl.innerText = MY_UID;
-
     const savedName = lsGet('classchat_name');
-    if (savedName) {
-      document.getElementById('name-input').value = savedName;
-    } else {
-      openNameModalIfNeeded();
+    if (savedName) document.getElementById('name-input').value = savedName;
+
+    updateProfileDisplay();
+
+    if (!savedName) {
+      document.getElementById('first-id-display').innerText = MY_UID;
+      document.getElementById('name-setup-modal').style.display = 'flex';
     }
 
     setEntryButtonsEnabled(false);
@@ -778,30 +841,6 @@
   }
 
   function closeKonetaHostModal() { document.getElementById('koneta-host-modal').style.display = 'none'; }
-
-  function openNameModalIfNeeded() {
-    document.getElementById('name-modal-input').value = '';
-    document.getElementById('name-modal-error').innerText = '';
-    document.getElementById('name-modal').style.display = 'flex';
-  }
-
-  function closeNameModal() { document.getElementById('name-modal').style.display = 'none'; }
-
-  function submitNameModal() {
-    const raw = document.getElementById('name-modal-input').value.trim();
-    const errorEl = document.getElementById('name-modal-error');
-    if (!raw) {
-      errorEl.innerText = 'ニックネームを入力してください。';
-      return;
-    }
-    lsSet('classchat_name', raw);
-    document.getElementById('name-input').value = raw;
-    closeNameModal();
-  }
-
-  function skipNameModal() {
-    closeNameModal();
-  }
 
   function requireLib() {
     if (libReady && typeof Peer !== 'undefined') return true;
@@ -1303,6 +1342,7 @@
     if (!text) return;
 
     lsSet('classchat_name', name);
+    updateProfileDisplay();
 
     const entry = { id: makeMessageId(), uid: MY_UID, name: name, text: text, time: Date.now() };
     const payload = { type: 'chat', id: entry.id, uid: entry.uid, name: entry.name, text: entry.text, time: entry.time };
@@ -1464,17 +1504,6 @@
     if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
       navigator.clipboard.writeText(idText).then(function () {
         alert('クラスIDをコピーしました: ' + idText);
-      }).catch(function () { fallbackCopyText(idText); });
-    } else {
-      fallbackCopyText(idText);
-    }
-  }
-
-  function copyMyId() {
-    const idText = document.getElementById('display-my-id').innerText;
-    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
-      navigator.clipboard.writeText(idText).then(function () {
-        alert('あなたのIDをコピーしました: ' + idText);
       }).catch(function () { fallbackCopyText(idText); });
     } else {
       fallbackCopyText(idText);
