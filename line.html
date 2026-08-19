@@ -379,14 +379,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-  // ========== Supabase 初期化 ==========
   const SUPABASE_URL = 'https://fdjkxnzxsprkjrmvudmc.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkamt4bnp4c3Bya2pybXZ1ZG1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwfQ.X1X2X3X4X5X6X7X8X9X0'; // 実際のキーに置き換えてください
-
+  const SUPABASE_ANON_KEY = '1234567890poiuytrewqasdfghjklmnbvcxzQWERTYUIOPLJHGFDSAZXCVBNM12345678990qwertyuioplkjhgfdsazxcvbnmQWERTYUIOPLKJHGFDSAZXCVBNM!-^@[]{}()&%$#!+.';
   const { createClient } = supabase;
   const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // ========== PeerJS 設定 ==========
   const PEERJS_SOURCES = [
     'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js',
     'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
@@ -405,8 +401,6 @@
   ];
 
   const TURN_SERVERS = [];
-
-  // ========== グローバル変数 ==========
   let libReady = false;
   let peer = null;
   let connections = [];
@@ -641,10 +635,8 @@
 
   function recordEntry(entry) { messageLog.push(entry); saveLog(); }
 
-  // ========== Supabase 操作 ==========
   async function loadKonetaFromDB() {
     try {
-      // お題を取得
       const { data: konetaData, error: topicError } = await supabaseClient
         .from('koneta_class')
         .select('*')
@@ -660,7 +652,6 @@
         lsSet(topicKey('koneta'), currentTopicText);
       }
 
-      // メッセージを取得
       const { data: messagesData, error: msgError } = await supabaseClient
         .from('koneta_messages')
         .select('*')
@@ -733,7 +724,6 @@
       try { konetaSubscription.unsubscribe(); } catch (e) {}
     }
 
-    // メッセージの Realtime 購読
     konetaSubscription = supabaseClient
       .channel('koneta_messages_updates')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'koneta_messages' }, function (payload) {
@@ -1503,6 +1493,5 @@
     alert(ok ? ('クラスIDをコピーしました: ' + text) : ('コピーできませんでした。手動でコピーしてください: ' + text));
   }
 </script>
-
-
-</body></html>
+</body>
+</html>
