@@ -540,6 +540,12 @@
             likes: row.likes || 0,
             isLiked: localPrefs.likedIds.indexOf(row.id) !== -1,
             pollData: row.poll_data ? {
+                pollData: row.poll_data ? {
+    question: row.poll_data.question,
+    options: row.poll_data.options,
+    voters: row.poll_data.voters || [],
+    userVotedIndex: (localPrefs.votedPolls[row.id] !== undefined ? localPrefs.votedPolls[row.id] : null)
+} : null,
                 question: row.poll_data.question,
                 options: row.poll_data.options,
                 userVotedIndex: (localPrefs.votedPolls[row.id] !== undefined ? localPrefs.votedPolls[row.id] : null)
@@ -555,6 +561,7 @@
             src: p.src,
             media_width: p.mediaWidth,
             media_height: p.mediaHeight,
+            poll_data: p.pollData ? { question: p.pollData.question, options: p.pollData.options, voters: p.pollData.voters || [] } : null,
             text_content: p.text,
             text_style: p.textStyle,
             is_muted: !!p.isMuted,
@@ -920,6 +927,64 @@
             btn.innerHTML = '<i class="fa fa-heart"></i> ' + (p.isLiked ? "お気に入り" : "いいね！") +
                             ' <span class="like-count">' + p.likes + "</span>";
             updateTabCounts();
+            async function votePoll(btn, index) {
+    const card = btn.closest(".content-card");
+    const p = getPost(card.dataset.id);
+    if (!p || !p.pollData) return;
+
+    if (localPrefs.votedPolls[p.id] !== undefined) {
+        alert("すでにこの投票に参加しています！（お一人につき1票までです）");
+        return;
+    }
+
+    let name = (localPrefs.voterName || "").trim();
+    if (!name) {
+        name = (prompt("お名前を入力してください（お一人につき1票までの確認に使います）") || "").trim();
+        if (!name) return;
+        localPrefs.voterName = name;
+        saveLocalPrefs();
+    }
+    const normalizedName = name.toLowerCase();
+
+    const { data: freshRow, error: fetchError } = await sb.from("posts").select("poll_data").eq("id", p.id).single();
+    if (fetchError) {
+        alert("投票データの確認に失敗しました：" + fetchError.message);
+        return;
+    }
+    const freshPoll = freshRow.poll_data || { question: p.pollData.question, options: p.pollData.options, voters: [] };
+    const voters = freshPoll.voters || [];
+
+    if (voters.some(v => (v || "").toLowerCase() === normalizedName)) {
+        alert(name + "さんはすでにこの投票に参加しています！（お一人につき1票までです）");
+        localPrefs.votedPolls[p.id] = index;
+        saveLocalPrefs();
+        return;
+    }
+
+    freshPoll.options[index].votes += 1;
+    voters.push(name);
+    freshPoll.voters = voters;
+
+    p.pollData.options = freshPoll.options;
+    p.pollData.voters = voters;
+
+    localPrefs.votedPolls[p.id] = index;
+    saveLocalPrefs();
+    bumpScore(p.category, 2);
+    saveLocalPrefs();
+
+    const { error } = await sb.from("posts").update({
+        poll_data: { question: freshPoll.question, options: freshPoll.options, voters: voters }
+    }).eq("id", p.id);
+    if (error) {
+        alert("投票の送信に失敗しました：" + error.message);
+        return;
+    }
+
+    card.querySelector(".poll-wrapper").innerHTML = pollHTML(p);
+    updateFeedNote();
+    alert("投票ありがとうございました！");
+}
             updateFeedNote();
         }
 
@@ -1018,7 +1083,12 @@
         }).eq("id", p.id);
         if (error) alert("投票の保存に失敗しました：" + error.message);
     }
-
+return {
+    question: question,
+    options: arr.map(t => ({ text: t, votes: 0 })),
+    voters: [],
+    userVotedIndex: null
+};
     function askPoll(defQ, defOpts) {
         const question = prompt("投票の質問を入力してください:", defQ);
         if (!question) return null;
